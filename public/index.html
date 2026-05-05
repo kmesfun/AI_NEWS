@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI NEWS TERMINAL</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="ticker-bar" aria-label="Stock ticker">
+      <div class="ticker-label">MARKETS</div>
+      <div class="ticker-viewport">
+        <div class="ticker-track" id="ticker-track">
+          <span class="ticker-loading">Loading market data&hellip;</span>
+        </div>
+      </div>
+    </header>
+
+    <nav class="topbar">
+      <div class="brand">
+        <span class="brand-mark">AI</span>
+        <span class="brand-name">NEWS TERMINAL</span>
+      </div>
+      <div class="meta">
+        <span id="clock">--:--:--</span>
+        <span class="dot" aria-hidden="true">&bull;</span>
+        <span id="status">CONNECTING</span>
+      </div>
+    </nav>
+
+    <main class="grid">
+      <section class="panel" data-cat="top">
+        <header class="panel-header"><h2>HEADLINES</h2><span class="count" id="count-top">--</span></header>
+        <ul class="feed" id="feed-top"></ul>
+      </section>
+      <section class="panel" data-cat="agentic">
+        <header class="panel-header"><h2>AGENTIC AI</h2><span class="count" id="count-agentic">--</span></header>
+        <ul class="feed" id="feed-agentic"></ul>
+      </section>
+      <section class="panel" data-cat="startups">
+        <header class="panel-header"><h2>AI STARTUPS</h2><span class="count" id="count-startups">--</span></header>
+        <ul class="feed" id="feed-startups"></ul>
+      </section>
+      <section class="panel" data-cat="semiconductors">
+        <header class="panel-header"><h2>SEMICONDUCTORS</h2><span class="count" id="count-semiconductors">--</span></header>
+        <ul class="feed" id="feed-semiconductors"></ul>
+      </section>
+      <section class="panel wide" data-cat="ipo">
+        <header class="panel-header"><h2>IPO WATCH</h2><span class="count" id="count-ipo">--</span></header>
+        <ul class="feed" id="feed-ipo"></ul>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <span>Sources: TechCrunch, The Verge, VentureBeat, MIT Tech Review, Wired, Ars Technica, EE Times, Crunchbase, Nasdaq, Hacker News</span>
+      <span>Quotes via Yahoo Finance &mdash; delayed</span>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
