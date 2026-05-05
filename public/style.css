@@ -13,6 +13,11 @@
   --red: #ff4d4d;
   --yellow: #ffcc00;
   --blue: #4cc2ff;
+  --cat-top: #4cc2ff;
+  --cat-agentic: #b6f05c;
+  --cat-startups: #ffb454;
+  --cat-semiconductors: #7aa2ff;
+  --cat-ipo: #ff6b9d;
   --header-h: 32px;
 }
 
@@ -187,6 +192,12 @@ a:hover { color: var(--accent-soft); }
   color: var(--accent-soft);
   font-family: 'IBM Plex Mono', monospace;
 }
+
+.panel[data-cat="top"] .panel-header h2 { color: var(--cat-top); }
+.panel[data-cat="agentic"] .panel-header h2 { color: var(--cat-agentic); }
+.panel[data-cat="startups"] .panel-header h2 { color: var(--cat-startups); }
+.panel[data-cat="semiconductors"] .panel-header h2 { color: var(--cat-semiconductors); }
+.panel[data-cat="ipo"] .panel-header h2 { color: var(--cat-ipo); }
 
 .panel-header .count {
   font-family: 'IBM Plex Mono', monospace;
