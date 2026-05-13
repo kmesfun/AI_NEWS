@@ -13,6 +13,7 @@ const parser = new Parser({
 
 const newsCache = new NodeCache({ stdTTL: 600 });
 const stockCache = new NodeCache({ stdTTL: 30 });
+const earningsCache = new NodeCache({ stdTTL: 3600 });
 
 const FEEDS = [
   { url: 'https://techcrunch.com/category/artificial-intelligence/feed/', source: 'TechCrunch' },
@@ -238,8 +239,81 @@ app.get('/api/calendar', (_req, res) => {
   res.json({ updatedAt: new Date().toISOString(), data: getCalendar() });
 });
 
+// ---- S&P 500-tier earnings (next 7 days, market cap >= $10B proxy) ----
+function parseMarketCap(str) {
+  if (!str) return 0;
+  const n = parseFloat(String(str).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function fetchEarningsForDate(dateIso) {
+  const url = `https://api.nasdaq.com/api/calendar/earnings?date=${dateIso}`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/json',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  const rows = json?.data?.rows;
+  if (!Array.isArray(rows)) return [];
+  return rows.map((r) => ({
+    date: dateIso,
+    symbol: r.symbol,
+    name: r.name,
+    time: r.time, // time-pre-market | time-after-hours | time-not-supplied
+    marketCap: parseMarketCap(r.marketCap),
+    marketCapStr: r.marketCap,
+    fiscalQuarter: r.fiscalQuarterEnding,
+    epsForecast: r.epsForecast,
+    lastYearEps: r.lastYearEPS,
+    lastYearDate: r.lastYearRptDt,
+    estimates: r.noOfEsts,
+  })).filter((e) => e.symbol);
+}
+
+async function getEarnings() {
+  const cached = earningsCache.get('earnings');
+  if (cached) return cached;
+
+  const today = new Date();
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  const results = await Promise.allSettled(dates.map(fetchEarningsForDate));
+  const all = results
+    .filter((r) => r.status === 'fulfilled')
+    .flatMap((r) => r.value);
+
+  // Top-500 proxy: market cap >= $10B
+  const filtered = all
+    .filter((e) => e.marketCap >= 10_000_000_000)
+    .sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return b.marketCap - a.marketCap;
+    });
+
+  if (filtered.length) earningsCache.set('earnings', filtered);
+  return filtered;
+}
+
+app.get('/api/earnings', async (_req, res) => {
+  try {
+    res.json({ updatedAt: new Date().toISOString(), data: await getEarnings() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`AI News Terminal running on http://localhost:${PORT}`);
   getNews().catch(() => {});
   getStocks().catch(() => {});
+  getEarnings().catch(() => {});
 });

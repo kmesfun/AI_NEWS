@@ -1,4 +1,5 @@
 const CATS = ['top', 'agentic', 'startups', 'semiconductors', 'ipo'];
+const ALL_TABS = ['top', 'agentic', 'startups', 'semiconductors', 'ipo', 'calendar', 'earnings'];
 
 const statusEl = document.getElementById('status');
 const clockEl = document.getElementById('clock');
@@ -151,6 +152,101 @@ async function loadCalendar() {
   }
 }
 
+// ---- Earnings ----
+function fmtMarketCap(n) {
+  if (!n || !Number.isFinite(n)) return '--';
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+  return `$${n}`;
+}
+
+function timeTagFor(time) {
+  if (time === 'time-pre-market') return { cls: 'bmo', label: 'BMO' };
+  if (time === 'time-after-hours') return { cls: 'amc', label: 'AMC' };
+  return { cls: 'tbd', label: 'TBD' };
+}
+
+function fmtEarningsDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const weekday = ['SUN','MON','TUE','WED','THU','FRI','SAT'][dt.getUTCDay()];
+  return `${weekday} ${MONTHS[m - 1]} ${String(d).padStart(2, '0')}`;
+}
+
+function renderEarnings(rows) {
+  const tbody = document.getElementById('tbody-earnings');
+  const countEl = document.getElementById('count-earnings');
+  countEl.textContent = rows.length;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No earnings in the next 7 days</td></tr>';
+    return;
+  }
+  let lastDate = '';
+  const html = [];
+  for (const r of rows) {
+    if (r.date !== lastDate) {
+      html.push(`<tr class="day-divider"><td colspan="8">${fmtEarningsDate(r.date)}</td></tr>`);
+      lastDate = r.date;
+    }
+    const tag = timeTagFor(r.time);
+    html.push(`
+      <tr>
+        <td>${escapeHTML(r.date)}</td>
+        <td><span class="time-tag ${tag.cls}">${tag.label}</span></td>
+        <td class="sym">${escapeHTML(r.symbol)}</td>
+        <td class="co">${escapeHTML(r.name)}</td>
+        <td class="num mc">${fmtMarketCap(r.marketCap)}</td>
+        <td class="num eps">${escapeHTML(r.epsForecast || '--')}</td>
+        <td class="num ly-eps">${escapeHTML(r.lastYearEps || '--')}</td>
+        <td class="qtr">${escapeHTML(r.fiscalQuarter || '--')}</td>
+      </tr>
+    `);
+  }
+  tbody.innerHTML = html.join('');
+}
+
+async function loadEarnings() {
+  try {
+    const res = await fetch('/api/earnings');
+    if (!res.ok) throw new Error('earnings fetch failed');
+    const { data } = await res.json();
+    renderEarnings(data || []);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('tbody-earnings').innerHTML =
+      '<tr><td colspan="8" class="empty">Earnings unavailable</td></tr>';
+  }
+}
+
+// ---- Tab switching ----
+function selectTab(tab) {
+  document.querySelectorAll('.tab').forEach((btn) => {
+    btn.setAttribute('aria-selected', btn.dataset.tab === tab ? 'true' : 'false');
+  });
+  document.querySelectorAll('.section').forEach((sec) => {
+    if (sec.dataset.cat === tab) {
+      sec.hidden = false;
+      sec.classList.add('active');
+    } else {
+      sec.hidden = true;
+      sec.classList.remove('active');
+    }
+  });
+  if (location.hash.replace('#', '') !== tab) {
+    history.replaceState(null, '', `#${tab}`);
+  }
+}
+
+function initTabs() {
+  document.querySelectorAll('.tab').forEach((btn) => {
+    btn.addEventListener('click', () => selectTab(btn.dataset.tab));
+  });
+  const hashTab = location.hash.replace('#', '');
+  if (ALL_TABS.includes(hashTab)) selectTab(hashTab);
+  else selectTab('top');
+}
+
 async function loadStocks() {
   try {
     const res = await fetch('/api/stocks');
@@ -163,11 +259,13 @@ async function loadStocks() {
 }
 
 async function init() {
+  initTabs();
   setStatus('LOADING', 'loading');
-  await Promise.all([loadNews(), loadStocks(), loadCalendar()]);
+  await Promise.all([loadNews(), loadStocks(), loadCalendar(), loadEarnings()]);
 }
 
 init();
 setInterval(loadNews, 5 * 60 * 1000);
 setInterval(loadStocks, 30 * 1000);
 setInterval(loadCalendar, 60 * 60 * 1000);
+setInterval(loadEarnings, 60 * 60 * 1000);
