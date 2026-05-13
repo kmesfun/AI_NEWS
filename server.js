@@ -163,6 +163,59 @@ async function getStocks() {
   }
 }
 
+// ---- Economic calendar (key US macro releases + AI/chip earnings) ----
+// Times are US Eastern. Maintained as a static schedule; filtered to future events.
+const ECON_EVENTS = [
+  { date: '2026-05-13', time: '08:30', event: 'CPI (April)', kind: 'macro', importance: 'high' },
+  { date: '2026-05-14', time: '08:30', event: 'PPI (April)', kind: 'macro', importance: 'medium' },
+  { date: '2026-05-15', time: '08:30', event: 'Retail Sales (April)', kind: 'macro', importance: 'high' },
+  { date: '2026-05-21', time: '14:00', event: 'FOMC Minutes', kind: 'fed', importance: 'high' },
+  { date: '2026-05-22', time: '16:20', event: 'NVIDIA Earnings (Q1 FY27)', kind: 'earnings', importance: 'high' },
+  { date: '2026-05-29', time: '08:30', event: 'Core PCE Price Index (April)', kind: 'macro', importance: 'high' },
+  { date: '2026-06-05', time: '08:30', event: 'Nonfarm Payrolls (May)', kind: 'macro', importance: 'high' },
+  { date: '2026-06-10', time: '08:30', event: 'CPI (May)', kind: 'macro', importance: 'high' },
+  { date: '2026-06-11', time: '08:30', event: 'PPI (May)', kind: 'macro', importance: 'medium' },
+  { date: '2026-06-17', time: '14:00', event: 'FOMC Rate Decision + SEP', kind: 'fed', importance: 'high' },
+  { date: '2026-06-26', time: '08:30', event: 'Core PCE Price Index (May)', kind: 'macro', importance: 'high' },
+  { date: '2026-07-03', time: '08:30', event: 'Nonfarm Payrolls (June)', kind: 'macro', importance: 'high' },
+  { date: '2026-07-15', time: '08:30', event: 'CPI (June)', kind: 'macro', importance: 'high' },
+  { date: '2026-07-22', time: '16:00', event: 'Alphabet, Tesla Earnings', kind: 'earnings', importance: 'high' },
+  { date: '2026-07-29', time: '14:00', event: 'FOMC Rate Decision', kind: 'fed', importance: 'high' },
+  { date: '2026-07-29', time: '16:00', event: 'Microsoft, Meta Earnings', kind: 'earnings', importance: 'high' },
+  { date: '2026-07-30', time: '08:30', event: 'GDP Q2 Advance Estimate', kind: 'macro', importance: 'high' },
+  { date: '2026-07-30', time: '16:00', event: 'Apple, Amazon Earnings', kind: 'earnings', importance: 'high' },
+  { date: '2026-07-31', time: '08:30', event: 'Core PCE Price Index (June)', kind: 'macro', importance: 'high' },
+  { date: '2026-08-07', time: '08:30', event: 'Nonfarm Payrolls (July)', kind: 'macro', importance: 'high' },
+  { date: '2026-08-12', time: '08:30', event: 'CPI (July)', kind: 'macro', importance: 'high' },
+  { date: '2026-08-27', time: '16:20', event: 'NVIDIA Earnings (Q2 FY27)', kind: 'earnings', importance: 'high' },
+  { date: '2026-08-28', time: '08:30', event: 'Core PCE Price Index (July)', kind: 'macro', importance: 'high' },
+  { date: '2026-09-04', time: '08:30', event: 'Nonfarm Payrolls (August)', kind: 'macro', importance: 'high' },
+  { date: '2026-09-10', time: '08:30', event: 'CPI (August)', kind: 'macro', importance: 'high' },
+  { date: '2026-09-16', time: '14:00', event: 'FOMC Rate Decision + SEP', kind: 'fed', importance: 'high' },
+  { date: '2026-09-25', time: '08:30', event: 'Core PCE Price Index (August)', kind: 'macro', importance: 'high' },
+  { date: '2026-10-02', time: '08:30', event: 'Nonfarm Payrolls (September)', kind: 'macro', importance: 'high' },
+  { date: '2026-10-14', time: '08:30', event: 'CPI (September)', kind: 'macro', importance: 'high' },
+  { date: '2026-10-28', time: '14:00', event: 'FOMC Rate Decision', kind: 'fed', importance: 'high' },
+  { date: '2026-10-29', time: '08:30', event: 'GDP Q3 Advance Estimate', kind: 'macro', importance: 'high' },
+  { date: '2026-10-30', time: '08:30', event: 'Core PCE Price Index (September)', kind: 'macro', importance: 'high' },
+  { date: '2026-11-06', time: '08:30', event: 'Nonfarm Payrolls (October)', kind: 'macro', importance: 'high' },
+  { date: '2026-11-12', time: '08:30', event: 'CPI (October)', kind: 'macro', importance: 'high' },
+  { date: '2026-11-19', time: '16:20', event: 'NVIDIA Earnings (Q3 FY27)', kind: 'earnings', importance: 'high' },
+  { date: '2026-11-25', time: '08:30', event: 'Core PCE Price Index (October)', kind: 'macro', importance: 'high' },
+  { date: '2026-12-04', time: '08:30', event: 'Nonfarm Payrolls (November)', kind: 'macro', importance: 'high' },
+  { date: '2026-12-10', time: '08:30', event: 'CPI (November)', kind: 'macro', importance: 'high' },
+  { date: '2026-12-16', time: '14:00', event: 'FOMC Rate Decision + SEP', kind: 'fed', importance: 'high' },
+  { date: '2026-12-23', time: '08:30', event: 'Core PCE Price Index (November)', kind: 'macro', importance: 'high' },
+];
+
+function getCalendar() {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  return ECON_EVENTS
+    .filter((e) => e.date >= todayIso)
+    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+    .slice(0, 25);
+}
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/news', async (_req, res) => {
@@ -179,6 +232,10 @@ app.get('/api/stocks', async (_req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/calendar', (_req, res) => {
+  res.json({ updatedAt: new Date().toISOString(), data: getCalendar() });
 });
 
 app.listen(PORT, () => {

@@ -101,6 +101,56 @@ async function loadNews() {
   }
 }
 
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+function renderCalendar(events) {
+  const ul = document.getElementById('feed-calendar');
+  const countEl = document.getElementById('count-calendar');
+  countEl.textContent = events.length;
+  if (!events.length) {
+    ul.innerHTML = '<li class="empty">No upcoming events</li>';
+    return;
+  }
+  const now = new Date();
+  ul.innerHTML = events.map((ev) => {
+    const [y, m, d] = ev.date.split('-').map(Number);
+    const evDate = new Date(Date.UTC(y, m - 1, d));
+    const diffDays = Math.round((evDate - new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))) / 86400000);
+    const isImminent = diffDays <= 3;
+    const countdown =
+      diffDays === 0 ? 'TODAY' :
+      diffDays === 1 ? 'TOMORROW' :
+      diffDays < 7 ? `IN ${diffDays}D` :
+      diffDays < 30 ? `IN ${Math.floor(diffDays / 7)}W` :
+      `IN ${Math.floor(diffDays / 30)}MO`;
+    return `
+      <li class="${isImminent ? 'imminent' : ''}">
+        <div class="when">
+          <span class="mon">${MONTHS[m - 1]}</span>
+          <span class="day">${String(d).padStart(2, '0')}</span>
+        </div>
+        <div class="what">
+          <span class="ev">${escapeHTML(ev.event)}</span>
+          <span class="kind ${ev.kind}">${escapeHTML(ev.kind)}</span>
+          <span class="countdown">${countdown}</span>
+        </div>
+        <div class="time">${escapeHTML(ev.time)} ET</div>
+      </li>
+    `;
+  }).join('');
+}
+
+async function loadCalendar() {
+  try {
+    const res = await fetch('/api/calendar');
+    if (!res.ok) throw new Error('calendar fetch failed');
+    const { data } = await res.json();
+    renderCalendar(data || []);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 async function loadStocks() {
   try {
     const res = await fetch('/api/stocks');
@@ -114,9 +164,10 @@ async function loadStocks() {
 
 async function init() {
   setStatus('LOADING', 'loading');
-  await Promise.all([loadNews(), loadStocks()]);
+  await Promise.all([loadNews(), loadStocks(), loadCalendar()]);
 }
 
 init();
 setInterval(loadNews, 5 * 60 * 1000);
 setInterval(loadStocks, 30 * 1000);
+setInterval(loadCalendar, 60 * 60 * 1000);
