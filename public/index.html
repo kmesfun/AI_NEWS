@@ -31,32 +31,41 @@
       </div>
     </nav>
 
-    <main class="grid">
-      <section class="panel" data-cat="top">
-        <header class="panel-header"><h2>HEADLINES</h2><span class="count" id="count-top">--</span></header>
-        <ul class="feed" id="feed-top"></ul>
-      </section>
-      <section class="panel" data-cat="agentic">
-        <header class="panel-header"><h2>AGENTIC AI</h2><span class="count" id="count-agentic">--</span></header>
-        <ul class="feed" id="feed-agentic"></ul>
-      </section>
-      <section class="panel" data-cat="startups">
-        <header class="panel-header"><h2>AI STARTUPS</h2><span class="count" id="count-startups">--</span></header>
-        <ul class="feed" id="feed-startups"></ul>
-      </section>
-      <section class="panel" data-cat="semiconductors">
-        <header class="panel-header"><h2>SEMICONDUCTORS</h2><span class="count" id="count-semiconductors">--</span></header>
-        <ul class="feed" id="feed-semiconductors"></ul>
-      </section>
-      <section class="panel wide" data-cat="ipo">
-        <header class="panel-header"><h2>IPO WATCH</h2><span class="count" id="count-ipo">--</span></header>
-        <ul class="feed" id="feed-ipo"></ul>
-      </section>
+    <main class="layout">
+      <div class="main-grid">
+        <section class="panel" data-cat="top">
+          <header class="panel-header"><h2>HEADLINES</h2><span class="count" id="count-top">--</span></header>
+          <ul class="feed" id="feed-top"></ul>
+        </section>
+        <section class="panel" data-cat="agentic">
+          <header class="panel-header"><h2>AGENTIC AI</h2><span class="count" id="count-agentic">--</span></header>
+          <ul class="feed" id="feed-agentic"></ul>
+        </section>
+        <section class="panel" data-cat="startups">
+          <header class="panel-header"><h2>AI STARTUPS</h2><span class="count" id="count-startups">--</span></header>
+          <ul class="feed" id="feed-startups"></ul>
+        </section>
+        <section class="panel" data-cat="semiconductors">
+          <header class="panel-header"><h2>SEMICONDUCTORS</h2><span class="count" id="count-semiconductors">--</span></header>
+          <ul class="feed" id="feed-semiconductors"></ul>
+        </section>
+      </div>
+
+      <aside class="sidebar">
+        <section class="panel" data-cat="ipo">
+          <header class="panel-header"><h2>IPO WATCH</h2><span class="count" id="count-ipo">--</span></header>
+          <ul class="feed" id="feed-ipo"></ul>
+        </section>
+        <section class="panel" data-cat="calendar">
+          <header class="panel-header"><h2>ECONOMIC CALENDAR</h2><span class="count" id="count-calendar">--</span></header>
+          <ul class="calendar" id="feed-calendar"></ul>
+        </section>
+      </aside>
     </main>
 
     <footer class="statusbar">
       <span>Sources: TechCrunch, The Verge, VentureBeat, MIT Tech Review, Wired, Ars Technica, EE Times, Crunchbase, Nasdaq, Hacker News</span>
-      <span>Quotes via Stooq &mdash; delayed</span>
+      <span>Quotes via Stooq &mdash; delayed &middot; Calendar times in US Eastern</span>
     </footer>
 
     <script src="/app.js"></script>
