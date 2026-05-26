@@ -1,5 +1,5 @@
 const CATS = ['top', 'agentic', 'startups', 'semiconductors', 'ipo'];
-const ALL_TABS = ['top', 'agentic', 'startups', 'semiconductors', 'ipo', 'calendar', 'earnings'];
+const ALL_TABS = ['top', 'agentic', 'startups', 'semiconductors', 'ipo', 'calendar', 'earnings', 'bubble'];
 
 const statusEl = document.getElementById('status');
 const clockEl = document.getElementById('clock');
@@ -219,6 +219,96 @@ async function loadEarnings() {
   }
 }
 
+// ---- AI Bubble Watch ----
+const SEV_LABEL = { green: 'CONTAINED', yellow: 'WATCH', orange: 'WARNING', red: 'DANGER' };
+
+function renderBubble(data) {
+  const { composite, indicators, news, analystNote } = data;
+
+  // Composite gauge
+  const gauge = document.getElementById('composite-gauge');
+  gauge.dataset.severity = composite.severity;
+  document.getElementById('cg-score').textContent = composite.label;
+  document.getElementById('cg-label').textContent = `Composite: ${composite.score}/4.00`;
+
+  // Build indicator ID → severity map for news tags
+  const indMap = {};
+  for (const ind of indicators) indMap[ind.id] = ind;
+
+  // Indicator cards
+  const container = document.getElementById('bubble-indicators');
+  container.innerHTML = indicators.map((ind) => `
+    <div class="ind-card">
+      <div class="ind-card-top">
+        <span class="ind-sev ${ind.severity}"></span>
+        <span class="ind-label">${escapeHTML(ind.label)}</span>
+        <span class="ind-reading">${escapeHTML(ind.reading)}</span>
+        <span class="ind-sev-badge ${ind.severity}">${SEV_LABEL[ind.severity] || ind.severity.toUpperCase()}</span>
+      </div>
+      <div class="ind-card-body">
+        <div class="ind-body-row">
+          <span class="ind-body-label">Thesis</span>
+          <span class="ind-body-text">${escapeHTML(ind.thesis)}</span>
+        </div>
+        <div class="ind-body-row">
+          <span class="ind-body-label">Dot-com Parallel</span>
+          <span class="ind-body-text dot-com">${escapeHTML(ind.dotcomParallel)}</span>
+        </div>
+        <div class="ind-body-row">
+          <span class="ind-body-label">Key Implication</span>
+          <span class="ind-body-text implication">${escapeHTML(ind.implication)}</span>
+        </div>
+        <div class="ind-body-row">
+          <span class="ind-body-label">Watch</span>
+          <div class="ind-watch-syms">
+            ${(ind.watchSymbols || []).map((s) => `<span class="ind-sym-tag">${escapeHTML(s)}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  // Tagged news feed
+  const feedEl = document.getElementById('feed-bubble');
+  if (!news.length) {
+    feedEl.innerHTML = '<li class="empty">No relevant news matched</li>';
+  } else {
+    feedEl.innerHTML = news.slice(0, 40).map((item) => {
+      const tags = (item.matchedIndicators || []).map((id) => {
+        const ind = indMap[id];
+        if (!ind) return '';
+        return `<span class="ind-tag ${ind.severity}">${escapeHTML(ind.label.split(' ')[0])}</span>`;
+      }).join('');
+      return `
+        <li onclick="window.open('${encodeURI(item.link)}', '_blank', 'noopener')">
+          <div class="row">
+            <span class="src">${escapeHTML(item.source)}</span>
+            <span class="time">${relTime(item.publishedAt)}</span>
+          </div>
+          <div class="title">${escapeHTML(item.title)}</div>
+          <div class="ind-tags">${tags}</div>
+        </li>
+      `;
+    }).join('');
+  }
+
+  // Analyst note
+  const noteEl = document.getElementById('analyst-note');
+  noteEl.textContent = analystNote;
+}
+
+async function loadBubble() {
+  try {
+    const res = await fetch('/api/bubble');
+    if (!res.ok) throw new Error('bubble fetch failed');
+    const { data } = await res.json();
+    renderBubble(data);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('bubble-indicators').innerHTML = '<div class="bubble-loading">Bubble data unavailable</div>';
+  }
+}
+
 // ---- Tab switching ----
 function selectTab(tab) {
   document.querySelectorAll('.tab').forEach((btn) => {
@@ -261,7 +351,7 @@ async function loadStocks() {
 async function init() {
   initTabs();
   setStatus('LOADING', 'loading');
-  await Promise.all([loadNews(), loadStocks(), loadCalendar(), loadEarnings()]);
+  await Promise.all([loadNews(), loadStocks(), loadCalendar(), loadEarnings(), loadBubble()]);
 }
 
 init();
@@ -269,3 +359,4 @@ setInterval(loadNews, 5 * 60 * 1000);
 setInterval(loadStocks, 30 * 1000);
 setInterval(loadCalendar, 60 * 60 * 1000);
 setInterval(loadEarnings, 60 * 60 * 1000);
+setInterval(loadBubble, 10 * 60 * 1000);
