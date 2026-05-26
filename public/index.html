@@ -32,6 +32,7 @@
         <button class="tab" role="tab" data-tab="ipo">IPO WATCH <span class="tab-count" id="count-ipo">--</span></button>
         <button class="tab" role="tab" data-tab="calendar">ECON CALENDAR <span class="tab-count" id="count-calendar">--</span></button>
         <button class="tab" role="tab" data-tab="earnings">S&amp;P 500 EARNINGS <span class="tab-count" id="count-earnings">--</span></button>
+        <button class="tab tab-bubble" role="tab" data-tab="bubble">⚠ AI BUBBLE WATCH</button>
       </div>
       <div class="meta">
         <span id="clock">--:--:--</span>
@@ -91,6 +92,37 @@
         </div>
       </section>
     </main>
+
+      <section class="section" data-cat="bubble" role="tabpanel" hidden>
+        <header class="section-header bubble-header">
+          <div>
+            <h2>AI BUBBLE WATCH</h2>
+            <span class="section-sub">Dot-com veteran framework &mdash; 9 structural indicators, live news tagging, market reaction</span>
+          </div>
+          <div class="composite-gauge" id="composite-gauge">
+            <span class="cg-score" id="cg-score">--</span>
+            <span class="cg-label" id="cg-label">LOADING</span>
+          </div>
+        </header>
+
+        <div class="bubble-layout">
+          <!-- Left: indicators -->
+          <div class="bubble-indicators" id="bubble-indicators">
+            <div class="bubble-loading">Loading indicators&hellip;</div>
+          </div>
+
+          <!-- Right: tagged news -->
+          <div class="bubble-news-col">
+            <div class="bubble-news-header">
+              <span class="bnh-label">RELEVANT NEWS &amp; MARKET SIGNALS</span>
+              <span class="bnh-sub">Stories matched against indicator keywords</span>
+            </div>
+            <ul class="feed bubble-feed" id="feed-bubble"></ul>
+          </div>
+        </div>
+
+        <div class="analyst-note" id="analyst-note"></div>
+      </section>
 
     <footer class="statusbar">
       <span>Sources: TechCrunch, The Verge, VentureBeat, MIT Tech Review, Wired, Ars Technica, EE Times, Crunchbase, Nasdaq, Hacker News</span>
