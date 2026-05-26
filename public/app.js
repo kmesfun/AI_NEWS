@@ -1,6 +1,11 @@
 const CATS = ['top', 'agentic', 'startups', 'semiconductors', 'ipo'];
 const ALL_TABS = ['top', 'agentic', 'startups', 'semiconductors', 'ipo', 'calendar', 'earnings', 'bubble'];
 
+// Shared state so headlines and bubble can re-render together
+let _latestHeadlines = [];
+let _latestBubbleAlerts = []; // {item, indicators[]}
+let _bubbleIndMap = {};       // id → indicator
+
 const statusEl = document.getElementById('status');
 const clockEl = document.getElementById('clock');
 const tickerTrack = document.getElementById('ticker-track');
@@ -38,15 +43,8 @@ function escapeHTML(s) {
   }[c]));
 }
 
-function renderFeed(cat, items) {
-  const ul = document.getElementById(`feed-${cat}`);
-  const countEl = document.getElementById(`count-${cat}`);
-  countEl.textContent = items.length;
-  if (!items.length) {
-    ul.innerHTML = '<li class="empty">No items yet</li>';
-    return;
-  }
-  ul.innerHTML = items.slice(0, 25).map((item) => `
+function newsItemHTML(item) {
+  return `
     <li onclick="window.open('${encodeURI(item.link)}', '_blank', 'noopener')">
       <div class="row">
         <span class="src">${escapeHTML(item.source)}</span>
@@ -55,7 +53,70 @@ function renderFeed(cat, items) {
       <div class="title">${escapeHTML(item.title)}</div>
       ${item.snippet ? `<div class="snippet">${escapeHTML(item.snippet)}</div>` : ''}
     </li>
-  `).join('');
+  `;
+}
+
+function bubbleAlertHTML(alert) {
+  const { item, indicators } = alert;
+  const worstSev = indicators.reduce((acc, ind) => {
+    const order = { red: 3, orange: 2, yellow: 1, green: 0 };
+    return (order[ind.severity] > order[acc]) ? ind.severity : acc;
+  }, 'yellow');
+  const tags = indicators.map((ind) =>
+    `<span class="alert-ind-tag sev-${ind.severity}">${escapeHTML(ind.label)}</span>`
+  ).join('');
+  return `
+    <li class="bubble-alert-item sev-${worstSev}"
+        onclick="window.open('${encodeURI(item.link)}', '_blank', 'noopener')">
+      <div class="alert-banner">
+        <span class="alert-icon">⚠</span>
+        <span class="alert-label">BUBBLE WATCH ALERT</span>
+        <span class="alert-ind-tags">${tags}</span>
+        <span class="alert-time">${relTime(item.publishedAt)}</span>
+      </div>
+      <div class="title">${escapeHTML(item.title)}</div>
+      <div class="row"><span class="src">${escapeHTML(item.source)}</span></div>
+      ${item.snippet ? `<div class="snippet">${escapeHTML(item.snippet)}</div>` : ''}
+    </li>
+  `;
+}
+
+function renderHeadlines() {
+  const ul = document.getElementById('feed-top');
+  const countEl = document.getElementById('count-top');
+
+  const alertHTML = _latestBubbleAlerts.slice(0, 5).map(bubbleAlertHTML).join('');
+  const newsHTML = _latestHeadlines.slice(0, 25).map(newsItemHTML).join('');
+  const total = _latestBubbleAlerts.length + _latestHeadlines.length;
+  countEl.textContent = total || '--';
+
+  if (!alertHTML && !newsHTML) {
+    ul.innerHTML = '<li class="empty">No items yet</li>';
+    return;
+  }
+
+  // Divider between alerts and regular news
+  const divider = alertHTML && newsHTML
+    ? `<li class="feed-divider"><span>LATEST HEADLINES</span></li>`
+    : '';
+
+  ul.innerHTML = alertHTML + divider + newsHTML;
+}
+
+function renderFeed(cat, items) {
+  if (cat === 'top') {
+    _latestHeadlines = items;
+    renderHeadlines();
+    return;
+  }
+  const ul = document.getElementById(`feed-${cat}`);
+  const countEl = document.getElementById(`count-${cat}`);
+  countEl.textContent = items.length;
+  if (!items.length) {
+    ul.innerHTML = '<li class="empty">No items yet</li>';
+    return;
+  }
+  ul.innerHTML = items.slice(0, 25).map(newsItemHTML).join('');
 }
 
 function fmtPrice(n) {
@@ -234,6 +295,26 @@ function renderBubble(data) {
   // Build indicator ID → severity map for news tags
   const indMap = {};
   for (const ind of indicators) indMap[ind.id] = ind;
+  _bubbleIndMap = indMap;
+
+  // Extract bubble alerts: news matched to RED or ORANGE indicators, deduped, sorted worst-first
+  const sevOrder = { red: 3, orange: 2, yellow: 1, green: 0 };
+  const alertItems = news
+    .map((item) => {
+      const matchedInds = (item.matchedIndicators || [])
+        .map((id) => indMap[id])
+        .filter((ind) => ind && (ind.severity === 'red' || ind.severity === 'orange'));
+      return matchedInds.length ? { item, indicators: matchedInds } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aMax = Math.max(...a.indicators.map((i) => sevOrder[i.severity] || 0));
+      const bMax = Math.max(...b.indicators.map((i) => sevOrder[i.severity] || 0));
+      return bMax - aMax;
+    });
+
+  _latestBubbleAlerts = alertItems;
+  renderHeadlines(); // re-render headlines with updated alerts
 
   // Indicator cards
   const container = document.getElementById('bubble-indicators');

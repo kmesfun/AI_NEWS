@@ -321,6 +321,77 @@ a:hover { color: var(--accent-soft); }
   font-family: 'IBM Plex Mono', monospace;
 }
 
+/* ===== Bubble alert items (pinned top of Headlines) ===== */
+.feed-divider {
+  padding: 6px 22px;
+  background: #0d1117;
+  border-bottom: 1px solid var(--border-strong);
+  list-style: none;
+}
+.feed-divider span {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.bubble-alert-item {
+  border-left: 3px solid var(--red);
+  background: rgba(255, 77, 77, 0.04) !important;
+  position: relative;
+}
+.bubble-alert-item.sev-orange { border-left-color: var(--accent); background: rgba(255, 138, 0, 0.04) !important; }
+.bubble-alert-item.sev-red    { border-left-color: var(--red);    background: rgba(255, 77, 77, 0.06)  !important; }
+.bubble-alert-item:hover      { background: rgba(255, 77, 77, 0.10) !important; }
+.bubble-alert-item.sev-orange:hover { background: rgba(255, 138, 0, 0.10) !important; }
+
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+.alert-icon {
+  font-size: 11px;
+  color: var(--red);
+}
+.bubble-alert-item.sev-orange .alert-icon { color: var(--accent); }
+
+.alert-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--red);
+  flex-shrink: 0;
+}
+.bubble-alert-item.sev-orange .alert-label { color: var(--accent); }
+
+.alert-ind-tags { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.alert-ind-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 1px 5px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.alert-ind-tag.sev-red    { background: rgba(255,77,77,0.14);  color: var(--red); }
+.alert-ind-tag.sev-orange { background: rgba(255,138,0,0.14); color: var(--accent); }
+.alert-ind-tag.sev-yellow { background: rgba(255,204,0,0.14); color: var(--yellow); }
+
+.alert-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 /* ===== Calendar ===== */
 .calendar {
   list-style: none;
