@@ -24,15 +24,29 @@
         <span class="brand-mark">AI</span>
         <span class="brand-name">NEWS TERMINAL</span>
       </div>
-      <div class="tabs">
-        <button class="tab" role="tab" data-tab="top" aria-selected="true">HEADLINES <span class="tab-count" id="count-top">--</span></button>
-        <button class="tab" role="tab" data-tab="agentic">AGENTIC AI <span class="tab-count" id="count-agentic">--</span></button>
-        <button class="tab" role="tab" data-tab="startups">STARTUPS <span class="tab-count" id="count-startups">--</span></button>
-        <button class="tab" role="tab" data-tab="semiconductors">SEMICONDUCTORS <span class="tab-count" id="count-semiconductors">--</span></button>
-        <button class="tab" role="tab" data-tab="ipo">IPO WATCH <span class="tab-count" id="count-ipo">--</span></button>
-        <button class="tab" role="tab" data-tab="calendar">ECON CALENDAR <span class="tab-count" id="count-calendar">--</span></button>
-        <button class="tab" role="tab" data-tab="earnings">S&amp;P 500 EARNINGS <span class="tab-count" id="count-earnings">--</span></button>
-        <button class="tab tab-bubble" role="tab" data-tab="bubble">⚠ AI BUBBLE WATCH</button>
+      <div class="tabs" role="presentation">
+        <div class="primary-tabs" role="presentation">
+          <button class="tab tab-primary" role="tab" data-tab="top" aria-selected="true">HEADLINES <span class="tab-count" data-count-for="top">--</span></button>
+          <button class="tab tab-primary" role="tab" data-tab="agentic">AGENTIC AI <span class="tab-count" data-count-for="agentic">--</span></button>
+          <button class="tab tab-primary" role="tab" data-tab="startups">STARTUPS <span class="tab-count" data-count-for="startups">--</span></button>
+          <button class="tab tab-primary" role="tab" data-tab="semiconductors">SEMICONDUCTORS <span class="tab-count" data-count-for="semiconductors">--</span></button>
+        </div>
+        <div class="more-tabs">
+          <button class="more-toggle" type="button" aria-haspopup="true" aria-expanded="false">
+            <span class="more-label">MORE</span>
+            <span class="more-current" id="more-current"></span>
+          </button>
+          <div class="more-menu" id="more-menu" role="menu">
+            <button class="tab more-tab mobile-tab" role="tab" data-tab="top">HEADLINES <span class="tab-count" data-count-for="top">--</span></button>
+            <button class="tab more-tab mobile-tab" role="tab" data-tab="agentic">AGENTIC AI <span class="tab-count" data-count-for="agentic">--</span></button>
+            <button class="tab more-tab mobile-tab" role="tab" data-tab="startups">STARTUPS <span class="tab-count" data-count-for="startups">--</span></button>
+            <button class="tab more-tab mobile-tab" role="tab" data-tab="semiconductors">SEMICONDUCTORS <span class="tab-count" data-count-for="semiconductors">--</span></button>
+            <button class="tab more-tab" role="tab" data-tab="ipo">IPO WATCH <span class="tab-count" data-count-for="ipo">--</span></button>
+            <button class="tab more-tab" role="tab" data-tab="calendar">ECON CALENDAR <span class="tab-count" data-count-for="calendar">--</span></button>
+            <button class="tab more-tab" role="tab" data-tab="earnings">S&amp;P 500 EARNINGS <span class="tab-count" data-count-for="earnings">--</span></button>
+            <button class="tab more-tab tab-bubble" role="tab" data-tab="bubble">AI BUBBLE WATCH</button>
+          </div>
+        </div>
       </div>
       <div class="meta">
         <span id="clock">--:--:--</span>
@@ -91,7 +105,6 @@
           </table>
         </div>
       </section>
-    </main>
 
       <section class="section" data-cat="bubble" role="tabpanel" hidden>
         <header class="section-header bubble-header">
@@ -106,23 +119,23 @@
         </header>
 
         <div class="bubble-layout">
-          <!-- Left: indicators -->
-          <div class="bubble-indicators" id="bubble-indicators">
-            <div class="bubble-loading">Loading indicators&hellip;</div>
-          </div>
-
-          <!-- Right: tagged news -->
           <div class="bubble-news-col">
             <div class="bubble-news-header">
-              <span class="bnh-label">RELEVANT NEWS &amp; MARKET SIGNALS</span>
-              <span class="bnh-sub">Stories matched against indicator keywords</span>
+              <span class="bnh-label">BUBBLE ALERT HEADLINES</span>
+              <span class="bnh-sub">Red and orange signals promoted from Headlines</span>
             </div>
             <ul class="feed bubble-feed" id="feed-bubble"></ul>
+          </div>
+
+          <div class="bubble-indicators" id="bubble-indicators">
+            <div class="bubble-loading">Loading indicators&hellip;</div>
           </div>
         </div>
 
         <div class="analyst-note" id="analyst-note"></div>
       </section>
+
+    </main>
 
     <footer class="statusbar">
       <span>Sources: TechCrunch, The Verge, VentureBeat, MIT Tech Review, Wired, Ars Technica, EE Times, Crunchbase, Nasdaq, Hacker News</span>

@@ -6,6 +6,17 @@ let _latestHeadlines = [];
 let _latestBubbleAlerts = []; // {item, indicators[]}
 let _bubbleIndMap = {};       // id → indicator
 
+const TAB_LABELS = {
+  top: 'HEADLINES',
+  agentic: 'AGENTIC AI',
+  startups: 'STARTUPS',
+  semiconductors: 'SEMIS',
+  ipo: 'IPO WATCH',
+  calendar: 'ECON CALENDAR',
+  earnings: 'EARNINGS',
+  bubble: 'BUBBLE WATCH',
+};
+
 const statusEl = document.getElementById('status');
 const clockEl = document.getElementById('clock');
 const tickerTrack = document.getElementById('ticker-track');
@@ -83,12 +94,11 @@ function bubbleAlertHTML(alert) {
 
 function renderHeadlines() {
   const ul = document.getElementById('feed-top');
-  const countEl = document.getElementById('count-top');
 
   const alertHTML = _latestBubbleAlerts.slice(0, 5).map(bubbleAlertHTML).join('');
   const newsHTML = _latestHeadlines.slice(0, 25).map(newsItemHTML).join('');
   const total = _latestBubbleAlerts.length + _latestHeadlines.length;
-  countEl.textContent = total || '--';
+  setTabCount('top', total || '--');
 
   if (!alertHTML && !newsHTML) {
     ul.innerHTML = '<li class="empty">No items yet</li>';
@@ -110,8 +120,7 @@ function renderFeed(cat, items) {
     return;
   }
   const ul = document.getElementById(`feed-${cat}`);
-  const countEl = document.getElementById(`count-${cat}`);
-  countEl.textContent = items.length;
+  setTabCount(cat, items.length);
   if (!items.length) {
     ul.innerHTML = '<li class="empty">No items yet</li>';
     return;
@@ -165,22 +174,39 @@ async function loadNews() {
 
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
+function isoDateInTimeZone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function daysBetweenIsoDates(fromIso, toIso) {
+  const [fromYear, fromMonth, fromDay] = fromIso.split('-').map(Number);
+  const [toYear, toMonth, toDay] = toIso.split('-').map(Number);
+  const from = Date.UTC(fromYear, fromMonth - 1, fromDay);
+  const to = Date.UTC(toYear, toMonth - 1, toDay);
+  return Math.round((to - from) / 86400000);
+}
+
 function renderCalendar(events) {
   const ul = document.getElementById('feed-calendar');
-  const countEl = document.getElementById('count-calendar');
-  countEl.textContent = events.length;
+  setTabCount('calendar', events.length);
   if (!events.length) {
     ul.innerHTML = '<li class="empty">No upcoming events</li>';
     return;
   }
-  const now = new Date();
+  const todayEtIso = isoDateInTimeZone(new Date(), 'America/New_York');
   ul.innerHTML = events.map((ev) => {
     const [y, m, d] = ev.date.split('-').map(Number);
-    const evDate = new Date(Date.UTC(y, m - 1, d));
-    const diffDays = Math.round((evDate - new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))) / 86400000);
-    const isImminent = diffDays <= 3;
+    const diffDays = daysBetweenIsoDates(todayEtIso, ev.date);
+    const isImminent = diffDays >= 0 && diffDays <= 3;
     const countdown =
-      diffDays === 0 ? 'TODAY' :
+      diffDays <= 0 ? 'TODAY' :
       diffDays === 1 ? 'TOMORROW' :
       diffDays < 7 ? `IN ${diffDays}D` :
       diffDays < 30 ? `IN ${Math.floor(diffDays / 7)}W` :
@@ -237,8 +263,7 @@ function fmtEarningsDate(iso) {
 
 function renderEarnings(rows) {
   const tbody = document.getElementById('tbody-earnings');
-  const countEl = document.getElementById('count-earnings');
-  countEl.textContent = rows.length;
+  setTabCount('earnings', rows.length);
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty">No earnings in the next 7 days</td></tr>';
     return;
@@ -351,26 +376,33 @@ function renderBubble(data) {
 
   // Tagged news feed
   const feedEl = document.getElementById('feed-bubble');
-  if (!news.length) {
+  const alertHTML = alertItems.slice(0, 10).map(bubbleAlertHTML).join('');
+  const signalNews = news.filter((item) => !alertItems.some((alert) => alert.item.link === item.link));
+  const signalHTML = signalNews.slice(0, 40).map((item) => {
+    const tags = (item.matchedIndicators || []).map((id) => {
+      const ind = indMap[id];
+      if (!ind) return '';
+      return `<span class="ind-tag ${ind.severity}">${escapeHTML(ind.label.split(' ')[0])}</span>`;
+    }).join('');
+    return `
+      <li onclick="window.open('${encodeURI(item.link)}', '_blank', 'noopener')">
+        <div class="row">
+          <span class="src">${escapeHTML(item.source)}</span>
+          <span class="time">${relTime(item.publishedAt)}</span>
+        </div>
+        <div class="title">${escapeHTML(item.title)}</div>
+        <div class="ind-tags">${tags}</div>
+      </li>
+    `;
+  }).join('');
+
+  if (!alertHTML && !signalHTML) {
     feedEl.innerHTML = '<li class="empty">No relevant news matched</li>';
   } else {
-    feedEl.innerHTML = news.slice(0, 40).map((item) => {
-      const tags = (item.matchedIndicators || []).map((id) => {
-        const ind = indMap[id];
-        if (!ind) return '';
-        return `<span class="ind-tag ${ind.severity}">${escapeHTML(ind.label.split(' ')[0])}</span>`;
-      }).join('');
-      return `
-        <li onclick="window.open('${encodeURI(item.link)}', '_blank', 'noopener')">
-          <div class="row">
-            <span class="src">${escapeHTML(item.source)}</span>
-            <span class="time">${relTime(item.publishedAt)}</span>
-          </div>
-          <div class="title">${escapeHTML(item.title)}</div>
-          <div class="ind-tags">${tags}</div>
-        </li>
-      `;
-    }).join('');
+    const divider = alertHTML && signalHTML
+      ? '<li class="feed-divider"><span>OTHER MATCHED SIGNALS</span></li>'
+      : '';
+    feedEl.innerHTML = alertHTML + divider + signalHTML;
   }
 
   // Analyst note
@@ -391,10 +423,25 @@ async function loadBubble() {
 }
 
 // ---- Tab switching ----
+function setTabCount(tab, value) {
+  document.querySelectorAll(`[data-count-for="${tab}"]`).forEach((el) => {
+    el.textContent = value;
+  });
+}
+
+function closeMoreMenu() {
+  const more = document.querySelector('.more-tabs');
+  const toggle = document.querySelector('.more-toggle');
+  more?.classList.remove('open');
+  toggle?.setAttribute('aria-expanded', 'false');
+}
+
 function selectTab(tab) {
   document.querySelectorAll('.tab').forEach((btn) => {
     btn.setAttribute('aria-selected', btn.dataset.tab === tab ? 'true' : 'false');
   });
+  const moreCurrent = document.getElementById('more-current');
+  if (moreCurrent) moreCurrent.textContent = TAB_LABELS[tab] || tab.toUpperCase();
   document.querySelectorAll('.section').forEach((sec) => {
     if (sec.dataset.cat === tab) {
       sec.hidden = false;
@@ -407,11 +454,25 @@ function selectTab(tab) {
   if (location.hash.replace('#', '') !== tab) {
     history.replaceState(null, '', `#${tab}`);
   }
+  closeMoreMenu();
 }
 
 function initTabs() {
   document.querySelectorAll('.tab').forEach((btn) => {
     btn.addEventListener('click', () => selectTab(btn.dataset.tab));
+  });
+  const more = document.querySelector('.more-tabs');
+  const toggle = document.querySelector('.more-toggle');
+  toggle?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const isOpen = more?.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+  document.addEventListener('click', (event) => {
+    if (!more?.contains(event.target)) closeMoreMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMoreMenu();
   });
   const hashTab = location.hash.replace('#', '');
   if (ALL_TABS.includes(hashTab)) selectTab(hashTab);
