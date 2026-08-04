@@ -1,3 +1,7 @@
+# Live site
+
+https://ai-news-nu-eight.vercel.app/
+
 # AI News Terminal
 
 A Bloomberg-style dashboard for tracking AI headlines, startup funding, semiconductor news, IPO activity, and AI-adjacent market movers in one live terminal view.
