@@ -309,9 +309,9 @@ a:hover { color: var(--accent-soft); }
   flex-shrink: 0;
 }
 .meta .dot { color: var(--accent); }
-#status { color: var(--green); }
-#status.error { color: var(--red); }
-#status.loading { color: var(--yellow); }
+.status-ok { color: var(--green); }
+.status-error { color: var(--red); }
+.status-loading { color: var(--yellow); }
 
 /* ===== Section (one visible at a time) ===== */
 .layout {
@@ -328,7 +328,6 @@ a:hover { color: var(--accent-soft); }
   height: calc(100vh - 32px - 44px - 28px);
   overflow: hidden;
 }
-.section[hidden] { display: none; }
 
 .section-header {
   display: flex;
