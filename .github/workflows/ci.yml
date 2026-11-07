@@ -21,7 +21,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -36,7 +36,6 @@ jobs:
   evals:
     name: Evals (offline)
     runs-on: ubuntu-latest
-    # Run evals in parallel with the build; don't block the build on network-dependent evals
     needs: build
 
     steps:
@@ -45,20 +44,16 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run evals
-        # Only the offline evals (Black-Scholes parity + calendar shape) are
-        # guaranteed to pass in CI — network-dependent evals (stocks, news,
-        # bubble) are best-effort and won't fail the build.
-        run: npm run eval
-        # Allow network evals to fail without blocking the PR; remove this
-        # once a stubbed/mocked data source is wired up for CI.
-        continue-on-error: true
+      - name: Run offline evals
+        # Only Black-Scholes parity and calendar shape — pure math/data, no network.
+        # Network-dependent evals (stocks, news, bubble) run locally via npm run eval.
+        run: npm run eval:offline
 
   lint:
     name: Lint
@@ -70,7 +65,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies

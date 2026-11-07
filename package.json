@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
-    "eval": "tsx evals/run.ts"
+    "eval": "tsx evals/run.ts",
+    "eval:offline": "tsx evals/run.ts offline",
+    "eval:network": "tsx evals/run.ts network"
   },
   "dependencies": {
     "next": "^15.3.2",
