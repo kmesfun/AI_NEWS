@@ -11,12 +11,12 @@ export default function TickerBar() {
     try {
       const res = await fetch('/api/stocks');
       const json = await res.json();
+      setLoading(false);
       if (json.data?.length) {
         setQuotes(json.data);
-        setLoading(false);
       }
     } catch {
-      // keep showing last quotes on error
+      setLoading(false);
     }
   }
 
@@ -32,6 +32,8 @@ export default function TickerBar() {
       <div className="ticker-viewport">
         {loading ? (
           <span className="ticker-loading">Loading quotes…</span>
+        ) : quotes.length === 0 ? (
+          <span className="ticker-loading">Market data unavailable</span>
         ) : (
           <div className="ticker-track">
             {[...quotes, ...quotes].map((q, i) => {
