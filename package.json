@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings 0",
     "eval": "tsx evals/run.ts"
   },
   "dependencies": {
@@ -17,9 +17,16 @@
     "yahoo-finance2": "^4.0.5"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
+    "@eslint/js": "^9.39.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.5",
+    "globals": "^17.14.0",
     "tsx": "^4.19.2",
     "typescript": "^5"
   }

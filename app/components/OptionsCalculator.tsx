@@ -73,7 +73,7 @@ function blackScholes(S: number, K: number, T: number, r: number, sigma: number)
 
 // ── P&L chart ─────────────────────────────────────────────────────────
 
-function PnLChart({ S, K, premium, type, sigma, T }: {
+function PnLChart({ S, K, premium, type, sigma: _sigma, T: _T }: {
   S: number; K: number; premium: number; type: 'call' | 'put'; sigma: number; T: number;
 }) {
   const range = Math.max(S * 0.3, 30);

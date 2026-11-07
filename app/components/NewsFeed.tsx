@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { NewsItem, BubbleIndicator } from '@/lib/types';
+import type { NewsItem } from '@/lib/types';
 
 type TaggedItem = NewsItem & { matchedIndicators: string[] };
 
@@ -85,7 +85,6 @@ export default function NewsFeed({ category, onCountChange }: Props) {
     fetchAll();
     const id = setInterval(fetchAll, 600_000);
     return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
   if (loading) {
