@@ -11,6 +11,7 @@ const PRIMARY_TABS = [
   { id: 'calendar',      label: 'CALENDAR',     emoji: '📅' },
   { id: 'earnings',      label: 'EARNINGS',     emoji: '📊' },
   { id: 'bubble',        label: 'BUBBLE WATCH', emoji: '🫧', cls: 'tab-bubble' },
+  { id: 'options',       label: 'OPTIONS CALC', emoji: '⚙️', cls: 'tab-options' },
 ];
 
 interface Props {
@@ -35,8 +36,9 @@ export default function TabNav({ activeTab, counts, onTabChange, status, statusC
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const visibleTabs = PRIMARY_TABS.slice(0, 6);
-  const moreTabs = PRIMARY_TABS.slice(6);
+  // Show first 5 tabs inline, rest in MORE dropdown
+  const visibleTabs = PRIMARY_TABS.slice(0, 5);
+  const moreTabs = PRIMARY_TABS.slice(5);
   const activeMore = moreTabs.find(t => t.id === activeTab);
 
   function handleTab(id: string) {
