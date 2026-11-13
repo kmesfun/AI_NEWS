@@ -1,449 +1,336 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { blackScholes, payoff, positionStats, type Strategy } from '@/lib/options';
 
-// ── Black-Scholes math ──────────────────────────────────────────────────
+const STRATEGIES: Array<{ id: Strategy; label: string; blurb: string }> = [
+  { id: 'long-call', label: 'Long Call', blurb: 'Buy a call. Profit if the stock rallies past breakeven; risk is the premium paid.' },
+  { id: 'long-put', label: 'Long Put', blurb: 'Buy a put. Profit if the stock falls past breakeven; risk is the premium paid.' },
+  { id: 'covered-call', label: 'Covered Call', blurb: 'Own 100 shares and sell a call against them. Collect premium now; upside is capped at the strike.' },
+];
 
-function erf(x: number): number {
-  const a1 =  0.254829592, a2 = -0.284496736, a3 =  1.421413741;
-  const a4 = -1.453152027, a5 =  1.061405429, p  =  0.3275911;
-  const sign = x < 0 ? -1 : 1;
-  x = Math.abs(x);
-  const t = 1 / (1 + p * x);
-  const y = 1 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*Math.exp(-x*x);
-  return sign * y;
+const DTE_CHIPS = [7, 14, 30, 45, 60, 90, 180, 365];
+
+const FALLBACK: Record<string, number> = { NVDA: 135, AAPL: 227, MSFT: 445, TSLA: 345, AMD: 155, META: 590 };
+const SYMBOLS = Object.keys(FALLBACK);
+
+function strikeStep(p: number) {
+  return p < 25 ? 1 : p < 100 ? 2.5 : p < 250 ? 5 : 10;
+}
+function roundStrike(p: number) {
+  const s = strikeStep(p);
+  return Math.round(p / s) * s;
 }
 
-function normCDF(x: number): number {
-  return 0.5 * (1 + erf(x / Math.SQRT2));
-}
+const usd = (n: number, d = 2) =>
+  `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
+const signedUsd = (n: number, d = 2) => `${n >= 0 ? '+' : '-'}${usd(Math.abs(n), d).replace('-', '')}`;
+const pct = (n: number, d = 1) => `${(n * 100).toFixed(d)}%`;
 
-function normPDF(x: number): number {
-  return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
-}
-
-interface BSResult {
-  callPrice: number;
-  putPrice: number;
-  d1: number;
-  d2: number;
-  callDelta: number;
-  putDelta: number;
-  gamma: number;
-  callTheta: number;
-  putTheta: number;
-  vega: number;
-  callRho: number;
-  putRho: number;
-  intrinsicCall: number;
-  intrinsicPut: number;
-  timeValueCall: number;
-  timeValuePut: number;
-}
-
-function blackScholes(S: number, K: number, T: number, r: number, sigma: number): BSResult | null {
-  if (S <= 0 || K <= 0 || T <= 0 || sigma <= 0) return null;
-  const sqrtT = Math.sqrt(T);
-  const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
-  const d2 = d1 - sigma * sqrtT;
-  const Nd1 = normCDF(d1), Nd2 = normCDF(d2);
-  const Nnd1 = normCDF(-d1), Nnd2 = normCDF(-d2);
-  const nd1 = normPDF(d1);
-  const disc = Math.exp(-r * T);
-
-  const callPrice = S * Nd1 - K * disc * Nd2;
-  const putPrice  = K * disc * Nnd2 - S * Nnd1;
-
-  return {
-    callPrice, putPrice, d1, d2,
-    callDelta: Nd1,
-    putDelta:  Nd1 - 1,
-    gamma:     nd1 / (S * sigma * sqrtT),
-    callTheta: (-S * nd1 * sigma / (2 * sqrtT) - r * K * disc * Nd2)  / 365,
-    putTheta:  (-S * nd1 * sigma / (2 * sqrtT) + r * K * disc * Nnd2) / 365,
-    vega:      S * nd1 * sqrtT / 100,
-    callRho:   K * T * disc * Nd2  / 100,
-    putRho:    -K * T * disc * Nnd2 / 100,
-    intrinsicCall: Math.max(0, S - K),
-    intrinsicPut:  Math.max(0, K - S),
-    timeValueCall: Math.max(0, callPrice - Math.max(0, S - K)),
-    timeValuePut:  Math.max(0, putPrice  - Math.max(0, K - S)),
-  };
-}
-
-// ── P&L chart ─────────────────────────────────────────────────────────
-
-function PnLChart({ S, K, premium, type, sigma: _sigma, T: _T }: {
-  S: number; K: number; premium: number; type: 'call' | 'put'; sigma: number; T: number;
+function Stepper({ label, value, onChange, step, min, prefix }: {
+  label: string; value: number; onChange: (v: number) => void; step: number; min: number; prefix?: string;
 }) {
-  const range = Math.max(S * 0.3, 30);
-  const lo = Math.max(1, S - range), hi = S + range;
-  const steps = 60;
-  const pts: { x: number; pnl: number }[] = [];
-  for (let i = 0; i <= steps; i++) {
-    const price = lo + (hi - lo) * i / steps;
-    const pnl = type === 'call'
-      ? Math.max(0, price - K) - premium
-      : Math.max(0, K - price) - premium;
-    pts.push({ x: price, pnl });
-  }
-
-  const pnls = pts.map(p => p.pnl);
-  const minPnl = Math.min(...pnls);
-  const maxPnl = Math.max(...pnls);
-  const pRange = maxPnl - minPnl || 1;
-
-  const W = 480, H = 160, PAD = { l: 48, r: 16, t: 12, b: 28 };
-  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
-
-  const toX = (price: number) => PAD.l + ((price - lo) / (hi - lo)) * iW;
-  const toY = (pnl: number) => PAD.t + ((maxPnl - pnl) / pRange) * iH;
-
-  const zeroY = toY(0);
-  const breakeven = type === 'call' ? K + premium : K - premium;
-  const beX = toX(breakeven);
-  const curX = toX(S);
-
-  // Build the filled area path
-  const above: string[] = [], below: string[] = [];
-  let prevAbove = pnls[0] >= 0;
-  let pathAbove = '', pathBelow = '';
-
-  pts.forEach((p, i) => {
-    const x = toX(p.x), y = toY(p.pnl);
-    if (i === 0) {
-      pathAbove = `M${x},${zeroY} L${x},${y}`;
-      pathBelow = `M${x},${zeroY} L${x},${y}`;
-    } else {
-      if (p.pnl >= 0 !== prevAbove) {
-        // crossing zero — find intersection
-        const pp = pts[i - 1];
-        const ix = toX(pp.x + (p.x - pp.x) * Math.abs(pp.pnl) / (Math.abs(pp.pnl) + Math.abs(p.pnl)));
-        pathAbove += ` L${ix},${zeroY}`;
-        pathBelow += ` L${ix},${zeroY}`;
-      }
-      pathAbove += ` L${x},${p.pnl >= 0 ? y : zeroY}`;
-      pathBelow += ` L${x},${p.pnl < 0 ? y : zeroY}`;
-      prevAbove = p.pnl >= 0;
-    }
-    if (p.pnl >= 0) above.push(`${x},${y}`); else below.push(`${x},${y}`);
-  });
-  void above; void below;
-  const lastX = toX(pts[pts.length - 1].x);
-  pathAbove += ` L${lastX},${zeroY} Z`;
-  pathBelow += ` L${lastX},${zeroY} Z`;
-
-  // Line path
-  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.x)},${toY(p.pnl)}`).join(' ');
-
-  // Y-axis labels
-  const yTicks = [minPnl, 0, maxPnl].filter((v, i, a) => a.indexOf(v) === i && Math.abs(v) > 0.01);
-
+  const clamp = (v: number) => Math.max(min, Math.round(v * 100) / 100);
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible', display: 'block' }}>
-      {/* Grid */}
-      <line x1={PAD.l} y1={zeroY} x2={W - PAD.r} y2={zeroY} stroke="var(--border-strong)" strokeWidth="1" />
-
-      {/* Filled areas */}
-      <path d={pathAbove} fill="rgba(46,204,113,0.15)" />
-      <path d={pathBelow} fill="rgba(255,77,77,0.15)" />
-
-      {/* Line */}
-      <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
-
-      {/* Breakeven */}
-      {beX >= PAD.l && beX <= W - PAD.r && (
-        <>
-          <line x1={beX} y1={PAD.t} x2={beX} y2={H - PAD.b} stroke="var(--yellow)" strokeWidth="1" strokeDasharray="3,3" />
-          <text x={beX + 3} y={PAD.t + 10} fill="var(--yellow)" fontSize="9" fontFamily="monospace">BE {breakeven.toFixed(0)}</text>
-        </>
-      )}
-
-      {/* Current price */}
-      <line x1={curX} y1={PAD.t} x2={curX} y2={H - PAD.b} stroke="var(--blue)" strokeWidth="1" strokeDasharray="4,2" />
-      <text x={curX + 3} y={H - PAD.b - 2} fill="var(--blue)" fontSize="9" fontFamily="monospace">NOW</text>
-
-      {/* Y-axis ticks */}
-      {yTicks.map((v, i) => (
-        <g key={i}>
-          <text x={PAD.l - 4} y={toY(v) + 4} fill="var(--text-muted)" fontSize="9" fontFamily="monospace" textAnchor="end">
-            {v >= 0 ? '+' : ''}{v.toFixed(1)}
-          </text>
-        </g>
-      ))}
-
-      {/* X-axis ticks */}
-      {[lo, K, S, hi].map((v, i) => (
-        <g key={i}>
-          <line x1={toX(v)} y1={H - PAD.b} x2={toX(v)} y2={H - PAD.b + 3} stroke="var(--border-strong)" strokeWidth="1" />
-          <text x={toX(v)} y={H - 2} fill={v === K ? 'var(--accent)' : 'var(--text-muted)'} fontSize="9" fontFamily="monospace" textAnchor="middle">
-            {v === K ? `K=${v.toFixed(0)}` : v.toFixed(0)}
-          </text>
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-// ── Greek display helpers ─────────────────────────────────────────────
-
-function GreekCard({ label, value, unit = '', description }: {
-  label: string; value: number; unit?: string; description: string;
-}) {
-  const [hover, setHover] = useState(false);
-  const formatted = Math.abs(value) < 0.0001 ? value.toExponential(2) :
-    Math.abs(value) < 0.01 ? value.toFixed(4) : value.toFixed(4);
-  return (
-    <div
-      className="greek-card"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      <span className="greek-label">{label}</span>
-      <span className="greek-value">{formatted}{unit}</span>
-      {hover && <div className="greek-tooltip">{description}</div>}
+    <div className="rh-field">
+      <span className="rh-field-label">{label}</span>
+      <div className="rh-stepper">
+        <button type="button" aria-label={`Decrease ${label}`} onClick={() => onChange(clamp(value - step))}>−</button>
+        <label className="rh-stepper-input">
+          {prefix && <span>{prefix}</span>}
+          <input
+            type="number" inputMode="decimal" min={min} step={step} value={value}
+            onChange={e => onChange(clamp(parseFloat(e.target.value) || min))}
+          />
+        </label>
+        <button type="button" aria-label={`Increase ${label}`} onClick={() => onChange(clamp(value + step))}>+</button>
+      </div>
     </div>
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────
+function Slider({ label, value, display, min, max, step, onChange }: {
+  label: string; value: number; display: string; min: number; max: number; step: number; onChange: (v: number) => void;
+}) {
+  return (
+    <div className="rh-field">
+      <div className="rh-field-head">
+        <span className="rh-field-label">{label}</span>
+        <span className="rh-field-value">{display}</span>
+      </div>
+      <input
+        className="rh-slider" type="range" min={min} max={max} step={step} value={value}
+        onChange={e => onChange(parseFloat(e.target.value))}
+      />
+    </div>
+  );
+}
 
-const POPULAR: Array<{ sym: string; price: number; label: string }> = [
-  { sym: 'NVDA',  price: 135, label: 'NVDA'  },
-  { sym: 'AAPL',  price: 227, label: 'AAPL'  },
-  { sym: 'MSFT',  price: 445, label: 'MSFT'  },
-  { sym: 'TSLA',  price: 345, label: 'TSLA'  },
-  { sym: 'AMD',   price: 155, label: 'AMD'   },
-  { sym: 'SPY',   price: 585, label: 'SPY'   },
-];
+function PayoffChart({ strategy, S, K, premium, mult, hoverPrice, onHover }: {
+  strategy: Strategy; S: number; K: number; premium: number; mult: number;
+  hoverPrice: number | null; onHover: (p: number | null) => void;
+}) {
+  const ref = useRef<SVGSVGElement>(null);
+  const W = 640, H = 260, PAD = { l: 8, r: 8, t: 16, b: 26 };
+  const iW = W - PAD.l - PAD.r, iH = H - PAD.t - PAD.b;
 
-export default function OptionsCalculator() {
-  const [stockPrice, setStockPrice]   = useState(135);
-  const [strikePrice, setStrikePrice] = useState(135);
-  const [daysToExp, setDaysToExp]     = useState(30);
-  const [volPct, setVolPct]           = useState(60);
-  const [ratePct, setRatePct]         = useState(5.25);
-  const [optType, setOptType]         = useState<'call' | 'put'>('call');
+  const lo = Math.max(0.5, Math.min(S, K) * 0.75);
+  const hi = Math.max(S, K) * 1.25;
+  const N = 120;
 
-  const T = daysToExp / 365;
-  const r = ratePct / 100;
-  const sigma = volPct / 100;
+  const pts = useMemo(() => Array.from({ length: N + 1 }, (_, i) => {
+    const price = lo + ((hi - lo) * i) / N;
+    return { price, pnl: payoff(strategy, S, K, premium, price) * mult };
+  }), [strategy, S, K, premium, mult, lo, hi]);
 
-  const bs = blackScholes(stockPrice, strikePrice, T, r, sigma);
+  const minP = Math.min(0, ...pts.map(p => p.pnl));
+  const maxP = Math.max(0, ...pts.map(p => p.pnl));
+  const span = maxP - minP || 1;
 
-  const moneyness = stockPrice > strikePrice ? 'ITM' : stockPrice < strikePrice ? 'OTM' : 'ATM';
-  const moneynessColor = moneyness === 'ITM' ? 'var(--green)' : moneyness === 'OTM' ? 'var(--red)' : 'var(--yellow)';
+  const toX = (price: number) => PAD.l + ((price - lo) / (hi - lo)) * iW;
+  const toY = (pnl: number) => PAD.t + ((maxP - pnl) / span) * iH;
+  const zeroY = toY(0);
 
-  const handleQuickFill = useCallback((p: number) => {
-    setStockPrice(p);
-    setStrikePrice(Math.round(p / 5) * 5);
-  }, []);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${toX(p.price).toFixed(1)},${toY(p.pnl).toFixed(1)}`).join(' ');
+  const area = `${line} L${toX(hi).toFixed(1)},${zeroY.toFixed(1)} L${toX(lo).toFixed(1)},${zeroY.toFixed(1)} Z`;
 
-  const price = bs ? (optType === 'call' ? bs.callPrice : bs.putPrice) : 0;
+  const hoverPnl = hoverPrice !== null ? payoff(strategy, S, K, premium, hoverPrice) * mult : 0;
+
+  function handle(e: React.PointerEvent<SVGSVGElement>) {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = ((e.clientX - rect.left) / rect.width) * W;
+    const t = Math.min(1, Math.max(0, (x - PAD.l) / iW));
+    onHover(lo + (hi - lo) * t);
+  }
+
+  const marks: Array<{ x: number; text: string; color: string }> = [
+    { x: S, text: 'NOW', color: 'var(--rh-text-dim)' },
+    { x: K, text: `K ${K}`, color: 'var(--rh-text)' },
+  ];
 
   return (
-    <div className="options-calc">
-      {/* Quick-fill popular underlyings */}
-      <div className="options-presets">
-        <span className="options-presets-label">QUICK FILL</span>
-        {POPULAR.map((p) => (
-          <button key={p.sym} className="preset-btn" onClick={() => handleQuickFill(p.price)}>
-            {p.label}
-          </button>
+    <svg
+      ref={ref} className="rh-chart" viewBox={`0 0 ${W} ${H}`} role="img"
+      aria-label="Profit and loss at expiration"
+      onPointerMove={handle} onPointerDown={handle} onPointerLeave={() => onHover(null)}
+    >
+      <defs>
+        <clipPath id="rh-clip-up"><rect x="0" y="0" width={W} height={zeroY} /></clipPath>
+        <clipPath id="rh-clip-down"><rect x="0" y={zeroY} width={W} height={H - zeroY} /></clipPath>
+      </defs>
+
+      <path d={area} fill="var(--rh-green)" opacity="0.14" clipPath="url(#rh-clip-up)" />
+      <path d={area} fill="var(--rh-red)" opacity="0.14" clipPath="url(#rh-clip-down)" />
+
+      <line x1={PAD.l} x2={W - PAD.r} y1={zeroY} y2={zeroY} className="rh-zero" />
+
+      {marks.map(m => (
+        <g key={m.text}>
+          <line x1={toX(m.x)} x2={toX(m.x)} y1={PAD.t} y2={H - PAD.b} className="rh-mark" />
+          <text x={toX(m.x)} y={H - 8} textAnchor="middle" fill={m.color} className="rh-axis">{m.text}</text>
+        </g>
+      ))}
+
+      <path d={line} fill="none" stroke="var(--rh-green)" strokeWidth="2.5" strokeLinejoin="round" clipPath="url(#rh-clip-up)" />
+      <path d={line} fill="none" stroke="var(--rh-red)" strokeWidth="2.5" strokeLinejoin="round" clipPath="url(#rh-clip-down)" />
+
+      {hoverPrice !== null && (
+        <g>
+          <line x1={toX(hoverPrice)} x2={toX(hoverPrice)} y1={PAD.t} y2={H - PAD.b} className="rh-scrub" />
+          <circle
+            cx={toX(hoverPrice)} cy={toY(hoverPnl)} r="5.5"
+            fill={hoverPnl >= 0 ? 'var(--rh-green)' : 'var(--rh-red)'} stroke="var(--rh-bg)" strokeWidth="2"
+          />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+function Row({ title, sub, value, tone }: { title: string; sub: string; value: string; tone?: 'up' | 'down' }) {
+  return (
+    <div className="rh-row">
+      <div>
+        <div className="rh-row-title">{title}</div>
+        <div className="rh-row-sub">{sub}</div>
+      </div>
+      <div className={`rh-row-value${tone ? ` rh-${tone}` : ''}`}>{value}</div>
+    </div>
+  );
+}
+
+export default function OptionsCalculator() {
+  const [strategy, setStrategy] = useState<Strategy>('covered-call');
+  const [symbol, setSymbol] = useState('NVDA');
+  const [prices, setPrices] = useState<Record<string, number>>(FALLBACK);
+  const [S, setS] = useState(FALLBACK.NVDA);
+  const [K, setK] = useState(roundStrike(FALLBACK.NVDA * 1.05));
+  const [dte, setDte] = useState(30);
+  const [ivPct, setIvPct] = useState(45);
+  const [ratePct, setRatePct] = useState(4.5);
+  const [qty, setQty] = useState(1);
+  const [hover, setHover] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/stocks')
+      .then(r => r.json())
+      .then(json => {
+        if (cancelled || !Array.isArray(json.data)) return;
+        const live: Record<string, number> = {};
+        for (const q of json.data as Array<{ symbol: string; price: number }>) {
+          if (SYMBOLS.includes(q.symbol) && q.price > 0) live[q.symbol] = q.price;
+        }
+        if (Object.keys(live).length) setPrices(p => ({ ...p, ...live }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const T = dte / 365, r = ratePct / 100, sigma = ivPct / 100;
+  const bs = blackScholes(S, K, T, r, sigma);
+  const mult = 100 * qty;
+  const isCovered = strategy === 'covered-call';
+  const isCall = strategy !== 'long-put';
+
+  const premium = bs ? (isCall ? bs.callPrice : bs.putPrice) : 0;
+  const stats = bs ? positionStats(strategy, S, K, premium, T, r, sigma) : null;
+  const meta = STRATEGIES.find(s => s.id === strategy)!;
+
+  function pick(sym: string) {
+    const p = Math.round(prices[sym] * 100) / 100;
+    setSymbol(sym);
+    setS(p);
+    setK(roundStrike(isCovered ? p * 1.05 : p));
+    setHover(null);
+  }
+
+  function pickStrategy(next: Strategy) {
+    setStrategy(next);
+    if (next === 'covered-call' && K <= S) setK(roundStrike(S * 1.05));
+    setHover(null);
+  }
+
+  const shown = hover ?? S;
+  const shownPnl = payoff(strategy, S, K, premium, shown) * mult;
+  const basis = isCovered ? (S - premium) * mult : premium * mult;
+  const shownRet = basis > 0 ? shownPnl / basis : 0;
+
+  const greeks = bs && (() => {
+    const sgn = isCovered ? -1 : 1;
+    const delta = strategy === 'long-put' ? bs.putDelta : isCovered ? 1 - bs.callDelta : bs.callDelta;
+    const theta = (strategy === 'long-put' ? bs.putTheta : bs.callTheta) * sgn;
+    const vega = bs.vega * sgn;
+    const rho = (strategy === 'long-put' ? bs.putRho : bs.callRho) * sgn;
+    const gamma = bs.gamma * sgn;
+    return { delta, gamma, theta, vega, rho };
+  })();
+
+  const scenarios = [-20, -10, -5, 0, 5, 10, 20];
+
+  return (
+    <div className="rh">
+      <div className="rh-chips" role="tablist" aria-label="Underlying">
+        {SYMBOLS.map(sym => (
+          <button
+            key={sym} type="button" role="tab" aria-selected={symbol === sym}
+            className={`rh-chip${symbol === sym ? ' on' : ''}`} onClick={() => pick(sym)}
+          >{sym}</button>
         ))}
       </div>
 
-      <div className="options-body">
-        {/* ── Inputs ── */}
-        <div className="options-inputs">
-          <div className="input-group">
-            <label>STOCK PRICE (S)</label>
-            <div className="input-with-unit">
-              <span className="input-prefix">$</span>
-              <input
-                type="number" min="1" step="0.5"
-                value={stockPrice}
-                onChange={e => setStockPrice(parseFloat(e.target.value) || 0)}
-              />
+      <div className="rh-layout">
+        <section className="rh-main">
+          <div className="rh-hero">
+            <div className="rh-hero-kicker">{symbol} · {meta.label} · ${K} · {dte}d</div>
+            <div className="rh-hero-price">{bs ? usd(premium * mult) : '—'}</div>
+            <div className="rh-hero-sub">
+              {isCovered ? 'premium collected' : 'premium paid'} · {usd(premium)}/share × {mult} shares
+            </div>
+            <div className={`rh-hero-pnl ${shownPnl >= 0 ? 'rh-up' : 'rh-down'}`}>
+              {signedUsd(shownPnl)} ({shownRet >= 0 ? '+' : ''}{(shownRet * 100).toFixed(1)}%)
+              <span className="rh-hero-at">
+                {hover === null ? ' if unchanged' : ` at ${usd(shown)}`}
+              </span>
             </div>
           </div>
 
-          <div className="input-group">
-            <label>STRIKE PRICE (K)</label>
-            <div className="input-with-unit">
-              <span className="input-prefix">$</span>
-              <input
-                type="number" min="1" step="0.5"
-                value={strikePrice}
-                onChange={e => setStrikePrice(parseFloat(e.target.value) || 0)}
-              />
-            </div>
-            <span className="moneyness-badge" style={{ color: moneynessColor, borderColor: moneynessColor }}>
-              {moneyness}
-            </span>
-          </div>
+          <PayoffChart
+            strategy={strategy} S={S} K={K} premium={premium} mult={mult}
+            hoverPrice={hover} onHover={setHover}
+          />
+          <div className="rh-chart-hint">Drag across the chart to see profit or loss at expiration</div>
 
-          <div className="input-group">
-            <label>DAYS TO EXPIRATION</label>
-            <input
-              type="range" min="1" max="365" step="1"
-              value={daysToExp}
-              onChange={e => setDaysToExp(parseInt(e.target.value))}
-              className="range-input"
-            />
-            <span className="range-value">{daysToExp}d ({(daysToExp / 365).toFixed(2)}y)</span>
+          <div className="rh-seg" role="tablist" aria-label="Strategy">
+            {STRATEGIES.map(s => (
+              <button
+                key={s.id} type="button" role="tab" aria-selected={strategy === s.id}
+                className={strategy === s.id ? 'on' : ''} onClick={() => pickStrategy(s.id)}
+              >{s.label}</button>
+            ))}
           </div>
+          <p className="rh-blurb">{meta.blurb}</p>
 
-          <div className="input-group">
-            <label>IMPLIED VOLATILITY (IV)</label>
-            <input
-              type="range" min="5" max="300" step="1"
-              value={volPct}
-              onChange={e => setVolPct(parseInt(e.target.value))}
-              className="range-input"
-            />
-            <span className="range-value">{volPct}%</span>
-          </div>
-
-          <div className="input-group">
-            <label>RISK-FREE RATE</label>
-            <input
-              type="range" min="0" max="10" step="0.25"
-              value={ratePct}
-              onChange={e => setRatePct(parseFloat(e.target.value))}
-              className="range-input"
-            />
-            <span className="range-value">{ratePct.toFixed(2)}%</span>
-          </div>
-
-          {/* Option type selector */}
-          <div className="opt-type-row">
-            <button
-              className={`opt-type-btn${optType === 'call' ? ' active-call' : ''}`}
-              onClick={() => setOptType('call')}
-            >CALL</button>
-            <button
-              className={`opt-type-btn${optType === 'put' ? ' active-put' : ''}`}
-              onClick={() => setOptType('put')}
-            >PUT</button>
-          </div>
-        </div>
-
-        {/* ── Results ── */}
-        <div className="options-results">
-          {bs ? (
+          {stats && bs && greeks ? (
             <>
-              {/* Price cards */}
-              <div className="price-cards">
-                <div className={`price-card${optType === 'call' ? ' price-card-active' : ''}`} onClick={() => setOptType('call')}>
-                  <span className="price-card-type">CALL</span>
-                  <span className="price-card-val">${bs.callPrice.toFixed(2)}</span>
-                  <span className="price-card-sub">IV: {volPct}% · {daysToExp}d</span>
-                  <div className="price-card-breakdown">
-                    <span>Intrinsic: ${bs.intrinsicCall.toFixed(2)}</span>
-                    <span>Time: ${bs.timeValueCall.toFixed(2)}</span>
-                  </div>
-                </div>
-                <div className={`price-card${optType === 'put' ? ' price-card-active-put' : ''}`} onClick={() => setOptType('put')}>
-                  <span className="price-card-type">PUT</span>
-                  <span className="price-card-val">${bs.putPrice.toFixed(2)}</span>
-                  <span className="price-card-sub">IV: {volPct}% · {daysToExp}d</span>
-                  <div className="price-card-breakdown">
-                    <span>Intrinsic: ${bs.intrinsicPut.toFixed(2)}</span>
-                    <span>Time: ${bs.timeValuePut.toFixed(2)}</span>
-                  </div>
-                </div>
+              <div className="rh-card">
+                <h3>Position summary</h3>
+                <Row
+                  title="Max profit"
+                  sub={isCovered ? 'Shares called away at the strike' : strategy === 'long-call' ? 'Unlimited upside' : 'Stock goes to $0'}
+                  value={Number.isFinite(stats.maxProfit) ? signedUsd(stats.maxProfit * mult) : 'Unlimited'} tone="up"
+                />
+                <Row
+                  title="Max loss"
+                  sub={isCovered ? 'Stock goes to $0, less premium kept' : 'Option expires worthless'}
+                  value={`-${usd(stats.maxLoss * mult)}`} tone="down"
+                />
+                <Row title="Breakeven" sub="Stock price at expiration" value={usd(stats.breakeven)} />
+                <Row title="Chance of profit" sub="Risk-neutral estimate from IV" value={pct(stats.chanceOfProfit)} />
+                {isCovered && stats.chanceAssigned !== undefined && (
+                  <>
+                    <Row title="Chance of assignment" sub={`Stock finishes above $${K}`} value={pct(stats.chanceAssigned)} />
+                    <Row
+                      title="Return if called away" sub={`${pct(stats.annualizedReturn ?? 0)} annualized`}
+                      value={`${pct(stats.returnIfAssigned ?? 0, 2)}`} tone={(stats.returnIfAssigned ?? 0) >= 0 ? 'up' : 'down'}
+                    />
+                    <Row title="Downside cushion" sub="Premium as a share of stock price" value={pct(stats.downsideCushion ?? 0, 2)} />
+                    <Row title="Capital required" sub={`${mult} shares, net of premium`} value={usd((S - premium) * mult)} />
+                  </>
+                )}
               </div>
 
-              {/* Greeks */}
-              <div className="greeks-section">
-                <div className="greeks-title">THE GREEKS <span className="greeks-hover-hint">hover for explanation</span></div>
-                <div className="greeks-grid">
-                  <GreekCard
-                    label="Δ DELTA"
-                    value={optType === 'call' ? bs.callDelta : bs.putDelta}
-                    description="Rate of change in option price per $1 move in the stock. Delta 0.5 ≈ option moves $0.50 per $1 stock move."
-                  />
-                  <GreekCard
-                    label="Γ GAMMA"
-                    value={bs.gamma}
-                    description="Rate of change of delta per $1 move. High gamma = delta changes fast (risky near expiry)."
-                  />
-                  <GreekCard
-                    label="Θ THETA"
-                    value={optType === 'call' ? bs.callTheta : bs.putTheta}
-                    unit="/day"
-                    description="Daily time decay — how much the option loses each day with everything else constant. Usually negative (bad for buyers)."
-                  />
-                  <GreekCard
-                    label="V VEGA"
-                    value={bs.vega}
-                    unit="/1%IV"
-                    description="Price change per 1% move in implied volatility. High vega = very sensitive to IV changes."
-                  />
-                  <GreekCard
-                    label="Ρ RHO"
-                    value={optType === 'call' ? bs.callRho : bs.putRho}
-                    unit="/1%rate"
-                    description="Price change per 1% move in the risk-free rate. Usually small and rarely the dominant risk."
-                  />
-                  <div className="greek-card greek-card-info">
-                    <span className="greek-label">BREAKEVEN</span>
-                    <span className="greek-value">
-                      ${optType === 'call' ? (strikePrice + price).toFixed(2) : (strikePrice - price).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
+              <div className="rh-card">
+                <h3>Greeks <small>{isCovered ? 'whole position, per share' : 'per share'}</small></h3>
+                <Row title="Delta" sub="Position change per $1 move in the stock" value={greeks.delta.toFixed(3)} />
+                <Row title="Gamma" sub="How fast delta changes per $1" value={greeks.gamma.toFixed(4)} />
+                <Row
+                  title="Theta" sub="Time decay per day"
+                  value={`${signedUsd(greeks.theta * mult)}/day`} tone={greeks.theta >= 0 ? 'up' : 'down'}
+                />
+                <Row title="Vega" sub="Change per 1% move in IV" value={`${signedUsd(greeks.vega * mult)}`} tone={greeks.vega >= 0 ? 'up' : 'down'} />
+                <Row title="Rho" sub="Change per 1% move in rates" value={`${signedUsd(greeks.rho * mult)}`} />
               </div>
 
-              {/* P&L Diagram */}
-              <div className="pnl-section">
-                <div className="pnl-title">P&amp;L AT EXPIRATION · {optType.toUpperCase()} ${strikePrice} · paid ${price.toFixed(2)}</div>
-                <div className="pnl-legend">
-                  <span style={{ color: 'var(--blue)' }}>── Current price</span>
-                  <span style={{ color: 'var(--yellow)' }}>┄ Breakeven</span>
-                  <span style={{ color: 'var(--green)' }}>█ Profit zone</span>
-                  <span style={{ color: 'var(--red)' }}>█ Loss zone</span>
-                </div>
-                <div className="pnl-chart-wrap">
-                  <PnLChart S={stockPrice} K={strikePrice} premium={price} type={optType} sigma={sigma} T={T} />
-                </div>
-              </div>
-
-              {/* Scenario table */}
-              <div className="scenario-section">
-                <div className="scenario-title">PRICE SCENARIOS AT EXPIRATION</div>
-                <div className="scenario-table-wrap">
-                  <table className="scenario-table">
+              <div className="rh-card">
+                <h3>Scenarios at expiration</h3>
+                <div className="rh-table-wrap">
+                  <table className="rh-table">
                     <thead>
-                      <tr>
-                        <th>STOCK AT</th>
-                        <th className="num">MOVE</th>
-                        <th className="num">INTRINSIC</th>
-                        <th className="num">P&amp;L</th>
-                        <th className="num">RETURN</th>
-                      </tr>
+                      <tr><th>Stock</th><th>Move</th><th>P&amp;L</th><th>Return</th></tr>
                     </thead>
                     <tbody>
-                      {[-30, -20, -10, -5, 0, 5, 10, 20, 30].map((pct) => {
-                        const sp = stockPrice * (1 + pct / 100);
-                        const intrinsic = optType === 'call' ? Math.max(0, sp - strikePrice) : Math.max(0, strikePrice - sp);
-                        const pnl = intrinsic - price;
-                        const ret = price > 0 ? (pnl / price) * 100 : 0;
-                        const isNow = pct === 0;
+                      {scenarios.map(m => {
+                        const price = S * (1 + m / 100);
+                        const pnl = payoff(strategy, S, K, premium, price) * mult;
+                        const ret = basis > 0 ? pnl / basis : 0;
                         return (
-                          <tr key={pct} style={isNow ? { background: 'rgba(76,194,255,0.07)' } : {}}>
-                            <td style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>${sp.toFixed(0)}</td>
-                            <td className="num" style={{ color: pct > 0 ? 'var(--green)' : pct < 0 ? 'var(--red)' : 'var(--text-muted)' }}>
-                              {pct > 0 ? '+' : ''}{pct}%
-                            </td>
-                            <td className="num">${intrinsic.toFixed(2)}</td>
-                            <td className="num" style={{ color: pnl >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
-                              {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                            </td>
-                            <td className="num" style={{ color: ret >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                              {ret >= 0 ? '+' : ''}{ret.toFixed(0)}%
-                            </td>
+                          <tr key={m} className={m === 0 ? 'now' : ''}>
+                            <td>{usd(price)}</td>
+                            <td className={m > 0 ? 'rh-up' : m < 0 ? 'rh-down' : ''}>{m > 0 ? '+' : ''}{m}%</td>
+                            <td className={pnl >= 0 ? 'rh-up' : 'rh-down'}>{signedUsd(pnl)}</td>
+                            <td className={ret >= 0 ? 'rh-up' : 'rh-down'}>{ret >= 0 ? '+' : ''}{(ret * 100).toFixed(1)}%</td>
                           </tr>
                         );
                       })}
@@ -453,16 +340,42 @@ export default function OptionsCalculator() {
               </div>
             </>
           ) : (
-            <div style={{ padding: '30px', color: 'var(--text-muted)', textAlign: 'center', fontFamily: 'monospace' }}>
-              Enter valid inputs to calculate
-            </div>
+            <div className="rh-empty">Enter valid inputs to calculate</div>
           )}
-        </div>
+        </section>
+
+        <aside className="rh-side">
+          <div className="rh-card">
+            <h3>Build your trade</h3>
+            <Stepper label="Stock price" value={S} onChange={setS} step={strikeStep(S) / 2} min={1} prefix="$" />
+            <Stepper label="Strike price" value={K} onChange={setK} step={strikeStep(S)} min={1} prefix="$" />
+            <div className="rh-moneyness">
+              {K === S ? 'At the money' : (isCall ? S > K : S < K) ? 'In the money' : 'Out of the money'}
+              {' · '}{(((K - S) / S) * 100).toFixed(1)}% from current price
+            </div>
+            <Stepper label={isCovered ? 'Contracts (100 shares each)' : 'Contracts'} value={qty} onChange={v => setQty(Math.round(v))} step={1} min={1} />
+
+            <div className="rh-field">
+              <span className="rh-field-label">Expiration</span>
+              <div className="rh-dte">
+                {DTE_CHIPS.map(d => (
+                  <button key={d} type="button" className={dte === d ? 'on' : ''} onClick={() => setDte(d)}>
+                    {d >= 365 ? '1y' : `${d}d`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Slider label="Days to expiration" value={dte} display={`${dte}d`} min={1} max={365} step={1} onChange={setDte} />
+            <Slider label="Implied volatility" value={ivPct} display={`${ivPct}%`} min={5} max={200} step={1} onChange={setIvPct} />
+            <Slider label="Risk-free rate" value={ratePct} display={`${ratePct.toFixed(2)}%`} min={0} max={10} step={0.25} onChange={setRatePct} />
+          </div>
+        </aside>
       </div>
 
-      <div className="options-disclaimer">
-        ⚑ DISCLAIMER: Black-Scholes assumes constant volatility, no dividends, and European-style exercise. American options (most equity options) may price differently. This tool is for educational purposes only — not financial advice.
-      </div>
+      <p className="rh-disclaimer">
+        Black-Scholes assumes constant volatility, no dividends and European exercise; listed equity options are American.
+        Covered-call figures ignore commissions and early assignment. Educational use only, not financial advice.
+      </p>
     </div>
   );
 }
