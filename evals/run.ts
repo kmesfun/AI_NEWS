@@ -45,33 +45,38 @@ async function run(
  * Validates put-call parity: C - P ≈ S - K*e^(-rT)
  */
 async function evalBlackScholesParity() {
-  function erf(x: number): number {
-    const t = 1 / (1 + 0.3275911 * Math.abs(x));
-    const poly =
-      t * (0.254829592 +
-        t * (-0.284496736 +
-          t * (1.421413741 +
-            t * (-1.453152027 +
-              t * 1.061405429))));
-    const val = 1 - poly * Math.exp(-(x * x));
-    return x >= 0 ? val : -val;
-  }
-  function normCDF(x: number) { return (1 + erf(x / Math.SQRT2)) / 2; }
-  function bs(S: number, K: number, T: number, r: number, sigma: number) {
-    const d1 = (Math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * Math.sqrt(T));
-    const d2 = d1 - sigma * Math.sqrt(T);
-    return {
-      call: S * normCDF(d1) - K * Math.exp(-r * T) * normCDF(d2),
-      put:  K * Math.exp(-r * T) * normCDF(-d2) - S * normCDF(-d1),
-    };
-  }
-
-  const { call, put } = bs(100, 100, 30 / 365, 0.05, 0.25);
-  const parity = call - put;
+  const { blackScholes } = await import('../lib/options.js');
+  const bs = blackScholes(100, 100, 30 / 365, 0.05, 0.25);
+  assert.ok(bs, 'blackScholes returned null for valid inputs');
+  const parity = bs.callPrice - bs.putPrice;
   const expected = 100 - 100 * Math.exp(-0.05 * (30 / 365));
   assert.ok(Math.abs(parity - expected) < 0.01, `Put-call parity violated: ${parity.toFixed(4)} vs ${expected.toFixed(4)}`);
-  assert.ok(call > 0 && put > 0, 'Both call and put must be positive for ATM');
-  assert.ok(call > put, 'Call > put when r > 0 (carry effect)');
+  assert.ok(bs.callPrice > 0 && bs.putPrice > 0, 'Both call and put must be positive for ATM');
+  assert.ok(bs.callPrice > bs.putPrice, 'Call > put when r > 0 (carry effect)');
+}
+
+/**
+ * Covered call — payoff must equal stock P&L plus short-call P&L, with
+ * profit capped at (K - S + premium) and breakeven at S - premium.
+ */
+async function evalCoveredCall() {
+  const { blackScholes, payoff, positionStats } = await import('../lib/options.js');
+  const S = 100, K = 105, T = 30 / 365, r = 0.045, sigma = 0.4;
+  const bs = blackScholes(S, K, T, r, sigma);
+  assert.ok(bs, 'blackScholes returned null');
+  const prem = bs.callPrice;
+  const stats = positionStats('covered-call', S, K, prem, T, r, sigma);
+
+  assert.ok(Math.abs(stats.maxProfit - (K - S + prem)) < 1e-9, 'maxProfit should be K - S + premium');
+  assert.ok(Math.abs(payoff('covered-call', S, K, prem, 150) - stats.maxProfit) < 1e-9, 'profit must be capped above the strike');
+  assert.ok(Math.abs(payoff('covered-call', S, K, prem, stats.breakeven)) < 1e-9, 'payoff at breakeven must be zero');
+  assert.ok(Math.abs(payoff('covered-call', S, K, prem, 0) + stats.maxLoss) < 1e-9, 'loss at $0 must equal maxLoss');
+  for (const p of [60, 95, 100, 104, 110, 140]) {
+    const direct = (p - S) - Math.max(0, p - K) + prem;
+    assert.ok(Math.abs(payoff('covered-call', S, K, prem, p) - direct) < 1e-9, `payoff mismatch at ${p}`);
+  }
+  assert.ok(stats.chanceOfProfit > 0.5 && stats.chanceOfProfit < 1, `chanceOfProfit=${stats.chanceOfProfit} implausible`);
+  assert.ok((stats.chanceAssigned ?? 2) < stats.chanceOfProfit, 'assignment (above K) must be less likely than profit (above S - premium)');
 }
 
 /**
@@ -152,6 +157,7 @@ async function evalBubble() {
 
 const OFFLINE_EVALS = [
   run('black-scholes:put-call parity', 'offline', evalBlackScholesParity),
+  run('covered-call:payoff',           'offline', evalCoveredCall),
   run('calendar:shape',                'offline', evalCalendar),
 ];
 
