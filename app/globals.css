@@ -235,6 +235,7 @@ a:hover { color: var(--accent-soft); }
   letter-spacing: 0.08em;
 }
 .more-current:empty { display: none; }
+.more-current-primary { display: none; }
 .more-menu {
   position: absolute;
   top: 100%;
@@ -293,6 +294,7 @@ a:hover { color: var(--accent-soft); }
     width: min(320px, calc(100vw - 20px));
   }
   .mobile-tab { display: inline-flex; }
+  .more-current-primary { display: inline; }
   .meta {
     gap: 6px;
     font-size: 11px;

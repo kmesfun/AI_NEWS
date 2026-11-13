@@ -38,8 +38,8 @@ export default function TabNav({ activeTab, counts, onTabChange, status, statusC
 
   // Show first 5 tabs inline, rest in MORE dropdown
   const visibleTabs = PRIMARY_TABS.slice(0, 5);
-  const moreTabs = PRIMARY_TABS.slice(5);
-  const activeMore = moreTabs.find(t => t.id === activeTab);
+  const activeAny = PRIMARY_TABS.find(t => t.id === activeTab);
+  const activeIsPrimary = visibleTabs.some(t => t.id === activeTab);
 
   function handleTab(id: string) {
     onTabChange(id);
@@ -75,13 +75,15 @@ export default function TabNav({ activeTab, counts, onTabChange, status, statusC
         <div className={`more-tabs${moreOpen ? ' open' : ''}`} ref={moreRef}>
           <button className="more-toggle" onClick={() => setMoreOpen(o => !o)}>
             MORE
-            {activeMore && <span className="more-current">{activeMore.label}</span>}
+            {activeAny && (
+              <span className={`more-current${activeIsPrimary ? ' more-current-primary' : ''}`}>{activeAny.label}</span>
+            )}
           </button>
           <div className="more-menu">
-            {moreTabs.map(t => (
+            {PRIMARY_TABS.map(t => (
               <button
                 key={t.id}
-                className={`tab more-tab${t.cls ? ' ' + t.cls : ''}`}
+                className={`tab more-tab${visibleTabs.includes(t) ? ' mobile-tab' : ''}${t.cls ? ' ' + t.cls : ''}`}
                 data-tab={t.id}
                 aria-selected={activeTab === t.id ? 'true' : 'false'}
                 onClick={() => handleTab(t.id)}
