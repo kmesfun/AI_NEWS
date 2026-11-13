@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { CalendarEvent } from '@/lib/types';
+import type { CalendarEvent, IpoPipelineItem } from '@/lib/types';
+
+const STATUS_LABEL: Record<IpoPipelineItem['status'], string> = {
+  roadshow: 'ROADSHOW',
+  filed: 'FILED CONFIDENTIALLY',
+  'not-filed': 'NO FILING YET',
+};
 
 function countdown(iso: string): { text: string; imminent: boolean } {
   const now = new Date();
@@ -19,6 +25,8 @@ function countdown(iso: string): { text: string; imminent: boolean } {
 
 export default function CalendarFeed() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [pipeline, setPipeline] = useState<IpoPipelineItem[]>([]);
+  const [asOf, setAsOf] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,6 +34,8 @@ export default function CalendarFeed() {
       .then(r => r.json())
       .then(j => {
         setEvents(j.data ?? []);
+        setPipeline(j.ipoPipeline ?? []);
+        setAsOf(j.ipoPipelineAsOf ?? '');
         setLoading(false);
       });
   }, []);
@@ -35,6 +45,7 @@ export default function CalendarFeed() {
   }
 
   return (
+    <div className="calendar-wrap">
     <ul className="calendar">
       {events.length === 0 ? (
         <li style={{ padding: '20px', color: 'var(--text-muted)', gridColumn: '1/-1' }}>No upcoming events</li>
@@ -61,5 +72,29 @@ export default function CalendarFeed() {
         })
       )}
     </ul>
+
+    {pipeline.length > 0 && (
+      <div className="ipo-pipeline">
+        <div className="ipo-pipeline-head">
+          <h3>IPO PIPELINE</h3>
+          <span>Tech and unicorn listings · press reports as of {asOf} · unconfirmed unless noted</span>
+        </div>
+        <ul className="ipo-grid">
+          {pipeline.map(c => (
+            <li key={c.name} className={`ipo-card ${c.status}`}>
+              <div className="ipo-card-top">
+                <span className="ipo-name">{c.name}</span>
+                {c.ticker && <span className="ipo-ticker">{c.ticker}</span>}
+              </div>
+              <span className={`ipo-status ${c.status}`}>{STATUS_LABEL[c.status]}</span>
+              <div className="ipo-window">{c.window}</div>
+              <p className="ipo-note">{c.note}</p>
+              {c.href && <a className="ipo-link" href={c.href} target="_blank" rel="noopener noreferrer">source ↗</a>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+    </div>
   );
 }

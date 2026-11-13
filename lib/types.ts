@@ -42,8 +42,20 @@ export interface CalendarEvent {
   date: string;
   time: string;
   event: string;
-  kind: 'macro' | 'fed' | 'earnings';
+  kind: 'macro' | 'fed' | 'earnings' | 'ipo';
   importance: 'high' | 'medium' | 'low';
+}
+
+export type IpoStatus = 'roadshow' | 'filed' | 'not-filed';
+
+export interface IpoPipelineItem {
+  name: string;
+  ticker?: string;
+  status: IpoStatus;
+  /** Expected timing as reported; free text because most have no firm date. */
+  window: string;
+  note: string;
+  href?: string;
 }
 
 export interface BubbleIndicator {

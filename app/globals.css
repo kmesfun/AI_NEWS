@@ -567,6 +567,27 @@ a:hover { color: var(--accent-soft); }
 .calendar .what .kind.fed { color: var(--accent-soft); }
 .calendar .what .kind.earnings { color: var(--cat-agentic); }
 .calendar .what .kind.macro { color: var(--blue); }
+.calendar .what .kind.ipo { color: var(--cat-ipo); }
+
+.calendar-wrap { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.calendar-wrap .calendar { overflow: visible; }
+.ipo-pipeline { border-top: 1px solid var(--border-strong); padding: 16px 22px 24px; font-family: 'IBM Plex Mono', monospace; }
+.ipo-pipeline-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 12px; }
+.ipo-pipeline-head h3 { margin: 0; font-size: 12px; letter-spacing: 0.16em; color: var(--cat-ipo); }
+.ipo-pipeline-head span { font-size: 10.5px; color: var(--text-muted); }
+.ipo-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.ipo-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 4px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ipo-card.roadshow { border-color: var(--cat-ipo); }
+.ipo-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ipo-name { font-weight: 700; font-size: 14px; color: var(--text); }
+.ipo-ticker { font-size: 10.5px; color: var(--text-dim); }
+.ipo-status { width: max-content; font-size: 9.5px; letter-spacing: 0.1em; padding: 1px 6px; border-radius: 2px; border: 1px solid var(--border-strong); color: var(--text-muted); }
+.ipo-status.roadshow { color: #000; background: var(--cat-ipo); border-color: var(--cat-ipo); }
+.ipo-status.filed { color: var(--yellow); border-color: var(--yellow); }
+.ipo-window { font-size: 11.5px; color: var(--accent-soft); }
+.ipo-note { margin: 0; font-size: 11px; line-height: 1.5; color: var(--text-dim); font-family: inherit; }
+.ipo-link { font-size: 10.5px; color: var(--blue); text-decoration: none; width: max-content; }
+.ipo-link:hover { text-decoration: underline; }
 
 .calendar .time {
   font-size: 10.5px;
@@ -1136,6 +1157,8 @@ a:hover { color: var(--accent-soft); }
   /* Calendar adjustments */
   .calendar li { grid-template-columns: 46px 1fr; gap: 8px; padding: 10px 14px; }
   .calendar .time { display: none; }
+  .ipo-pipeline { padding: 14px 14px 20px; }
+  .ipo-grid { grid-template-columns: 1fr; }
   .calendar .when .day { font-size: 16px; }
 
   /* Bubble layout */
