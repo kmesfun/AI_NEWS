@@ -89,7 +89,7 @@ async function evalCalendar() {
   const ev = events[0];
   assert.ok(typeof ev.date === 'string' && ev.date.length > 0, 'event.date must be a non-empty string');
   assert.ok(typeof ev.event === 'string' && ev.event.length > 0, 'event.event must be non-empty');
-  assert.ok(['macro', 'fed', 'earnings'].includes(ev.kind), `event.kind must be a valid kind, got ${ev.kind}`);
+  assert.ok(['macro', 'fed', 'earnings', 'ipo'].includes(ev.kind), `event.kind must be a valid kind, got ${ev.kind}`);
 }
 
 // ─── network evals (best-effort; don't block CI) ─────────────────────────────

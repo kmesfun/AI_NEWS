@@ -1,4 +1,4 @@
-import type { CalendarEvent } from './types';
+import type { CalendarEvent, IpoPipelineItem } from './types';
 
 const ECON_EVENTS: CalendarEvent[] = [
   { date: '2026-05-12', time: '08:30', event: 'CPI (April)', kind: 'macro', importance: 'high' },
@@ -46,6 +46,8 @@ const ECON_EVENTS: CalendarEvent[] = [
   { date: '2026-11-10', time: '08:30', event: 'CPI (October)', kind: 'macro', importance: 'high' },
   { date: '2026-11-13', time: '08:30', event: 'PPI (October)', kind: 'macro', importance: 'medium' },
   { date: '2026-11-17', time: '08:30', event: 'Retail Sales (October)', kind: 'macro', importance: 'high' },
+  { date: '2026-11-18', time: 'TBC', event: 'Anthropic (ANT) IPO pricing, 825M shares at $70-$78', kind: 'ipo', importance: 'high' },
+  { date: '2026-11-19', time: 'TBC', event: 'Anthropic (ANT) expected first trade on Nasdaq', kind: 'ipo', importance: 'high' },
   { date: '2026-11-19', time: '16:20', event: 'NVIDIA Earnings (Q3 FY27)', kind: 'earnings', importance: 'high' },
   { date: '2026-11-25', time: '08:30', event: 'Core PCE Price Index (October)', kind: 'macro', importance: 'high' },
   { date: '2026-12-04', time: '08:30', event: 'Nonfarm Payrolls (November)', kind: 'macro', importance: 'high' },
@@ -71,4 +73,77 @@ export function getCalendar(): CalendarEvent[] {
     .filter((e) => e.date >= today)
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
     .slice(0, 25);
+}
+
+// Status of private tech companies' IPO plans as reported by the press on
+// IPO_PIPELINE_AS_OF. Most have no announced date; windows are reported
+// expectations, not company guidance. Update this list as filings land.
+export const IPO_PIPELINE_AS_OF = '2026-11-13';
+
+const IPO_PIPELINE: IpoPipelineItem[] = [
+  {
+    name: 'Anthropic', ticker: 'ANT (Nasdaq)', status: 'roadshow',
+    window: 'Prices Nov 18, trades Nov 19 (per CNBC; not company-confirmed)',
+    note: 'Public S-1 on file, roadshow launched Nov 10 with a $70-$78 range on 825M shares.',
+    href: 'https://www.cnbc.com/2026/11/10/anthropic-sets-price-range-of-70-to-78-in-upcoming-ipo.html',
+  },
+  {
+    name: 'OpenAI', status: 'filed',
+    window: '2027 outlook; no date set',
+    note: 'Confidential draft S-1 submitted (announced Jun 8, 2026). Timing undecided; reports lean to 2027.',
+  },
+  {
+    name: 'Databricks', status: 'not-filed',
+    window: '2027 at the earliest',
+    note: 'CEO ruled out 2026. Raised $5B privately at a $190B valuation in August; no public S-1.',
+  },
+  {
+    name: 'Stripe', status: 'not-filed',
+    window: 'No date announced',
+    note: 'Tender offer valued it near $159B in February; no listing plans confirmed.',
+  },
+  {
+    name: 'Canva', status: 'not-filed',
+    window: 'Reports conflict: late 2026 to 2027',
+    note: 'Executives have called an IPO likely within a couple of years; Nasdaq is the reported target.',
+  },
+  {
+    name: 'Discord', status: 'filed',
+    window: 'Slipped; late 2026 to 2027',
+    note: 'Confidential filing reported in January 2026; the original Q2 target has passed.',
+  },
+  {
+    name: 'Kraken', status: 'filed',
+    window: 'Waiting on crypto markets',
+    note: 'Confidential filing reported in April 2026.',
+  },
+  {
+    name: 'Revolut', status: 'not-filed',
+    window: '2027-2028',
+    note: 'Valued around $75B in a late-2025 secondary; management points to a later listing.',
+  },
+  {
+    name: 'Ramp', status: 'not-filed',
+    window: '2027',
+    note: 'Roughly $44B valuation; reportedly aiming to be IPO-ready by end of 2026.',
+  },
+  {
+    name: 'Plaid', status: 'not-filed',
+    window: 'Mostly 2027',
+    note: 'Pipeline trackers have pushed it out of 2026.',
+  },
+  {
+    name: 'Mistral AI', status: 'not-filed',
+    window: '2027 target (tracker estimate)',
+    note: 'Paris listing floated by trackers; no company announcement.',
+  },
+  {
+    name: 'Perplexity', status: 'not-filed',
+    window: '2028',
+    note: 'CEO signalled in June 2026 that it will not rush a listing.',
+  },
+];
+
+export function getIpoPipeline(): IpoPipelineItem[] {
+  return IPO_PIPELINE;
 }
